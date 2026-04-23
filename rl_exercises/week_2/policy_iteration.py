@@ -86,14 +86,18 @@ class PolicyIteration(AbstractAgent):
             The selected action and an empty info dictionary.
         """
         # TODO: Return the action according to current policy
-        raise NotImplementedError("predict_action() is not implemented.")
+        return zip(self.pi[observation], info)
+        # raise NotImplementedError("predict_action() is not implemented.")
 
     def update_agent(self, *args: tuple, **kwargs: dict) -> None:
         """Run policy iteration to compute the optimal policy and state-action values."""
         if not self.policy_fitted:
             # TODO: Call policy iteration with initialized values
             printr("Initial policy: ", self.pi)
-            raise NotImplementedError("update_agent() is not implemented.")
+            self.Q, self.pi, self.steps = policy_iteration(
+                self.Q, self.pi, zip(self.S, self.A, self.T, self.R_sa, self.gamma)
+            )
+            # raise NotImplementedError("update_agent() is not implemented.")
             printr("Q: ", self.Q)
             printr("Final policy: ", self.pi)
             printr("Policy iteration steps:", self.steps)
@@ -159,8 +163,15 @@ def policy_evaluation(
     V = np.zeros(nS)
 
     # TODO: implement Policy Evaluation for all states
-
-    return V
+    convergence = False
+    while not convergence:
+        V_old = np.copy(V)
+        for s in nS:
+            s_prime = np.argmax(T[s, pi[s], :])
+            V[s] = R_sa[s, pi[s]] + gamma * V[s_prime]
+        diff = np.max(np.abs(V_old - V))
+        if diff < epsilon:
+            return V
 
 
 def policy_improvement(
