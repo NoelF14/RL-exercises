@@ -1,0 +1,6 @@
+What happens if you only have access to `step()` instead of the dynamics and reward? 
+Do both methods still work? Briefly describe your observations.
+
+Both methods won't work in that case. Policy and Value iteration need information about the dynamics 
+and reward function. It would be possible to learn the dynamics and reward function via model-based RL.
+After that those methods could be applied to find an optimal policy.
