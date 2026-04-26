@@ -380,3 +380,171 @@ class MarsRoverPartialObsWrapper(gym.Wrapper):
             Rendered output from the base environment.
         """
         return self.env.render(mode=mode)
+
+
+# Level 3 Week 2 task
+class ContextualMarsRover(MarsRover):
+    def __init__(
+        self,
+        context: dict[str, float] | None = None,
+        expose_context: bool = False,
+        **kwargs,
+    ):
+        self.context = context or {
+            "slip_termination_probability": 0.2,
+            "slip_penalty": -20.0,
+            "left_reward": 3.0,
+            "right_reward": 10.0,
+        }
+        self.expose_context = expose_context
+
+        rewards = [
+            self.context["left_reward"],
+            0.0,
+            0.0,
+            0.0,
+            self.context["right_reward"],
+        ]
+
+        super().__init__(
+            rewards=rewards,
+            **kwargs,
+        )
+
+        # Recompute after MarsRover init, now using contextual methods
+        self.transition_matrix = self.T = self.get_transition_matrix()
+
+    def reset(self, *, seed=None, options=None):
+        state, info = super().reset(seed=seed, options=options)
+        return self._obs(state), {"context": self.context}
+
+    def step(self, action: int):
+        action = int(action)
+        if not self.action_space.contains(action):
+            raise RuntimeError(f"{action} is not a valid action")
+
+        if self.position in [0, self.observation_space.n - 1]:
+            reward = 0.0
+            terminated = True
+            truncated = False
+            return (
+                self._obs(self.position),
+                reward,
+                terminated,
+                truncated,
+                {
+                    "context": self.context,
+                    "slipped": False,
+                    "already_terminal": True,
+                },
+            )
+
+        self.current_steps += 1
+
+        slip_prob = float(self.context["slip_termination_probability"])
+        slip_penalty = float(self.context["slip_penalty"])
+
+        # only right action is risky
+        if action == 1 and self.rng.random() < slip_prob:
+            reward = slip_penalty
+            terminated = True
+            truncated = False
+
+            return (
+                self._obs(self.position),
+                reward,
+                terminated,
+                truncated,
+                {
+                    "context": self.context,
+                    "slipped": True,
+                },
+            )
+
+        # normal movement
+        self.position = self.get_next_state(self.position, action)
+
+        reward = float(self.rewards[self.position])
+
+        # terminate at left or right goal
+        terminated = self.position in [0, self.observation_space.n - 1]
+        truncated = self.current_steps >= self.horizon
+
+        return (
+            self._obs(self.position),
+            reward,
+            terminated,
+            truncated,
+            {
+                "context": self.context,
+                "slipped": False,
+            },
+        )
+
+    def get_transition_matrix(
+        self,
+        S: np.ndarray | None = None,
+        A: np.ndarray | None = None,
+        P: np.ndarray | None = None,
+    ) -> np.ndarray:
+        nS = self.observation_space.n
+        nA = self.action_space.n
+        T = np.zeros((nS, nA, nS), dtype=float)
+
+        slip = float(self.context["slip_termination_probability"])
+
+        for s in range(nS):
+            for a in range(nA):
+                # absorbing terminal states
+                if s in [0, nS - 1]:
+                    T[s, a, s] = 1.0
+                    continue
+
+                # make only going right risky
+                if a == 1:
+                    safe_next = self.get_next_state(s, a)
+                    T[s, a, safe_next] += 1.0 - slip
+                    T[s, a, s] += (
+                        slip  # catastrophic slip: stay and terminate in real env
+                    )
+                else:
+                    safe_next = self.get_next_state(s, a)
+                    T[s, a, safe_next] = 1.0
+
+        return T
+
+    def get_reward_per_action(self) -> np.ndarray:
+        nS = self.observation_space.n
+        nA = self.action_space.n
+        R = np.zeros((nS, nA), dtype=float)
+
+        slip = float(self.context["slip_termination_probability"])
+        slip_penalty = float(self.context["slip_penalty"])
+
+        for s in range(nS):
+            for a in range(nA):
+                if s in [0, nS - 1]:
+                    R[s, a] = 0.0
+                    continue
+
+                safe_next = self.get_next_state(s, a)
+                safe_reward = float(self.rewards[safe_next])
+
+                if a == 1:
+                    R[s, a] = (1.0 - slip) * safe_reward + slip * slip_penalty
+                else:
+                    R[s, a] = safe_reward
+
+        return R
+
+    def _obs(self, state: int):
+        if not self.expose_context:
+            return state
+
+        return (
+            state,
+            self.context["slip_termination_probability"],
+            self.context["slip_penalty"],
+            self.context["left_reward"],
+            self.context["right_reward"],
+        )

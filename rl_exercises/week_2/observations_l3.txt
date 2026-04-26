@@ -1,0 +1,97 @@
+Our Contextual marsROver has four different context features:
+    "slip_termination_probability": 0.2,
+    "slip_penalty": -20.0,
+    "left_reward": 3.0,
+    "right_reward": 10.0,
+
+But only slip_termination_probability and right_reward are currently changed over different runs.
+The idea is that the right state is terminal and has the higher reward but taking hte action right is more risky then going for the safe(r) choice of taking the lower reward in the leftmost terminal state.
+If the agent "slips" the episode terminates with a negative reward.
+We use validation to test interpolation and test to test extrapolation and tried 3 different train sets (modes a to c from section 6.4).
+ 
+
+Level 3 Observations
+====================
+
+
+Mode A
+======
+
+hidden context
+saved policy: policy_mode_a_hidden_context.npy
+policy: [0, 1, 1, 1, 1]
+train return: 5.236
+validation return: 3.940
+test return: -2.473
+
+visible context
+saved policy: policy_mode_a_visible_context.npy
+policy rows = contexts, columns = positions
+policy:
+[[0 1 1 1 1]
+ [0 1 1 1 1]
+ [0 1 1 1 1]
+ [1 0 0 0 1]
+ [0 1 1 1 1]
+ [0 1 1 1 1]
+ [0 0 0 0 1]
+ [1 0 0 1 1]
+ [0 0 1 1 1]]
+train return: 6.656
+validation return: 3.940
+test return: 3.000
+
+Mode B
+======
+
+hidden context
+saved policy: policy_mode_b_hidden_context.npy
+policy: [0, 0, 0, 1, 1]
+train return: 3.000
+validation return: 3.000
+test return: 3.000
+
+visible context
+saved policy: policy_mode_b_visible_context.npy
+policy rows = contexts, columns = positions
+policy:
+[[0 0 0 1 1]
+ [0 0 1 1 1]
+ [0 0 0 1 1]
+ [1 0 0 1 1]]
+train return: 3.145
+validation return: 4.330
+test return: 3.000
+
+Mode C
+======
+
+hidden context
+saved policy: policy_mode_c_hidden_context.npy
+policy: [0, 0, 1, 1, 1]
+train return: 4.133
+validation return: 3.940
+test return: -2.473
+
+visible context
+saved policy: policy_mode_c_visible_context.npy
+policy rows = contexts, columns = positions
+policy:
+[[0 1 1 1 1]
+ [0 0 0 1 1]
+ [0 0 0 0 1]]
+train return: 6.667
+validation return: 3.000
+test return: 3.000
+
+Manual interpretation notes
+---------------------------
+
+Fill this in after looking at the numbers:
+
+- Did visible context improve train/validation/test returns?
+- Did validation perform closer to train than test?
+- Which mode was hardest: A, B, or C?
+- Did hidden context fail when different contexts required different actions?
+- How is this similar to the paper?
+- How is this different from the paper?

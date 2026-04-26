@@ -167,8 +167,9 @@ def policy_evaluation(
     while not convergence:
         V_old = np.copy(V)
         for s in range(nS):
-            s_prime = np.argmax(T[s, pi[s], :])
-            V[s] = R_sa[s, pi[s]] + gamma * V[s_prime]
+            V[s] = R_sa[s, pi[s]] + gamma * sum(
+                T[s, pi[s], s_prime] * V_old[s_prime] for s_prime in range(nS)
+            )
         diff = np.max(np.abs(V_old - V))
         if diff < epsilon:
             return V
