@@ -5,7 +5,7 @@ Our Contextual marsROver has four different context features:
     "right_reward": 10.0,
 
 But only slip_termination_probability and right_reward are currently changed over different runs.
-The idea is that the right state is terminal and has the higher reward but taking hte action right is more risky then going for the safe(r) choice of taking the lower reward in the leftmost terminal state.
+The idea is that the right state is terminal and has the higher reward but taking the action right is more risky then going for the safe(r) choice of taking the lower reward in the leftmost terminal state.
 If the agent "slips" the episode terminates with a negative reward.
 We use validation to test interpolation and test to test extrapolation and tried 3 different train sets (modes a to c from section 6.4).
  
@@ -84,14 +84,37 @@ train return: 6.667
 validation return: 3.000
 test return: 3.000
 
-Manual interpretation notes
----------------------------
+Interpretation
+--------------
+With visible context, the train return improved for all modes. 
+    This is because the agent can condition its policy on the context, instead of averaging over 
+    different environments. This matches the paper’s finding that context-conditioned policies can 
+    learn more discriminative behavior and achieve higher performance, since they can adapt to 
+    each specific environment instance.
 
-Fill this in after looking at the numbers:
+The test return greatly improved for modes A and C. For those modes hidden context performed badly.
+    In modes A and C, different contexts require different optimal actions (e.g., going right is 
+    sometimes worth the risk, sometimes not). A hidden-context policy must commit to a single 
+    compromise strategy, which fails especially under distribution shift (test). Visible context 
+    resolves this by enabling different actions per context. This directly reflects the paper’s 
+    result that a single hidden-context policy cannot be optimal when contexts 
+    induce conflicting optimal actions, leading to large performance drops without context.
 
-- Did visible context improve train/validation/test returns?
-- Did validation perform closer to train than test?
-- Which mode was hardest: A, B, or C?
-- Did hidden context fail when different contexts required different actions?
-- How is this similar to the paper?
-- How is this different from the paper?
+In most cases, validation performed (much) better than test.
+    Validation corresponds to interpolation (contexts within or close to the training distribution), 
+    whereas test includes extrapolation (contexts outside the training range). 
+    Agents generalize better within the training distribution but struggle outside of it. 
+    This aligns with the paper’s experiments, where interpolation is significantly easier than 
+    out-of-distribution generalization, and performance drops as the test contexts move further away 
+    from the training distribution.
+
+Our results compared to Figure 9 in the paper:
+    mode A: 
+        We saw that visible context performed much better than hidden context.
+        In the paper there was not much of a difference.
+    mode B: 
+        We didn't see much of a difference between hidden and visible context. 
+        In the paper visible context performed even worse than hidden context.
+    mode C:
+        We saw that visible context performed much better than hidden context.
+        Similar results were also observed in the paper.
