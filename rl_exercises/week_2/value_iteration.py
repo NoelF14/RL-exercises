@@ -66,17 +66,14 @@ class ValueIteration(AbstractAgent):
 
         # TODO: Call value_iteration() with the MDP components
         V_opt, pi_opt = value_iteration(
-            T=self.T,
-            R_sa=self.R_sa,
-            gamma=self.gamma,
-            seed=self.seed
+            T=self.T, R_sa=self.R_sa, gamma=self.gamma, seed=self.seed
         )
 
         self.V = V_opt
         self.pi = pi_opt
         printr("Converged V:", self.V)
         printr("Derived policy π:", self.pi)
-        self.policy_fitted = True # TODO: uncomment this after implementation
+        self.policy_fitted = True  # TODO: uncomment this after implementation
 
     def predict_action(
         self,
@@ -129,22 +126,29 @@ def value_iteration(
     """
     n_states, n_actions = R_sa.shape
     V = np.zeros(n_states, dtype=float)
-    rng = np.random.default_rng(seed) 
+    rng = np.random.default_rng(seed)
     pi = None
 
     # TODO: update V using the Q values until convergence
     k = 1
+    V_old = np.copy(V)
     while k == 1 or np.max(np.abs(V - V_old)) > epsilon:
         V_old = np.copy(V)
         for s in range(n_states):
-            V[s] = max(R_sa[s, a] + gamma * sum(T[s, a, s_] * V_old[s_] for s_ in range(n_states)) for a in range(n_actions))
+            V[s] = max(
+                R_sa[s, a]
+                + gamma * sum(T[s, a, s_] * V_old[s_] for s_ in range(n_states))
+                for a in range(n_actions)
+            )
         k += 1
-
 
     # TODO: Extract the greedy policy from V and update pi
     pi = np.zeros(n_states, dtype=int)
-    for s in range(n_states):        
-        Q_values = [R_sa[s, a] + gamma * sum(T[s, a, s_] * V[s_] for s_ in range(n_states)) for a in range(n_actions)]
+    for s in range(n_states):
+        Q_values = [
+            R_sa[s, a] + gamma * sum(T[s, a, s_] * V[s_] for s_ in range(n_states))
+            for a in range(n_actions)
+        ]
         best_actions = [a for a, v in enumerate(Q_values) if v == max(Q_values)]
         pi[s] = rng.choice(best_actions)
 

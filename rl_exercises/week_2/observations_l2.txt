@@ -4,3 +4,12 @@ Do both methods still work? Briefly describe your observations.
 Both methods won't work in that case. Policy and Value iteration need information about the dynamics 
 and reward function. It would be possible to learn the dynamics and reward function via model-based RL.
 After that those methods could be applied to find an optimal policy.
+
+In this week we could use the transition probabilities and the reward function to solve our MDP according to our known and complete model of the world.
+We are able to compute expectation exactly in this case because all info needed is known.
+
+In our new setting the environment / transition and reward function are unknown and we can only sample transitions and make obersvations.
+This introduces new challenges as we dont know the distribution of what our action actually does.#
+We need methods like Temporal Difference- or Q-learning, ... that work with samples.
+
+We replace the expectation over all possibilities with our sampled experience trading off exploration and exploitation.
