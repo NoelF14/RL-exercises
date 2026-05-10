@@ -224,7 +224,10 @@ class DQNAgent(AbstractAgent):
         self.optimizer.load_state_dict(checkpoint["optimizer"])
 
     def update_agent(
-        self, training_batch: List[Tuple[Any, Any, float, Any, bool, Dict]]
+        self, 
+        training_batch: List[Tuple[Any, Any, float, Any, bool, Dict]],
+        idxs,
+        weights
     ) -> float:
         """
         Perform one gradient update on a batch of transitions.
@@ -246,6 +249,7 @@ class DQNAgent(AbstractAgent):
         r = torch.tensor(np.array(rewards), dtype=torch.float32)
         s_next = torch.tensor(np.array(next_states), dtype=torch.float32)
         mask = torch.tensor(np.array(dones), dtype=torch.float32)
+        w = torch.tensor(weights, dtype=torch.float32)
 
         # current Q estimates for taken actions
         # TODO: pass batched states through self.q and gather Q(s,a)
@@ -253,14 +257,21 @@ class DQNAgent(AbstractAgent):
 
         # TODO: compute TD target with frozen network
         with torch.no_grad():
-            target = r + (1 - mask) * self.gamma * self.target_q(s_next).max(dim=1)[0]
+            next_actions = self.q(s_next).argmax(dim=1, keepdim=True)
+            next_q = self.target_q(s_next).gather(1, next_actions).squeeze(1)
 
-        loss = nn.MSELoss()(pred, target)
+            target = r + (1 - mask) * self.gamma * next_q
+        
+        td_errors = target - pred
+
+        loss = (w * (td_errors ** 2)).mean()
 
         # gradient step
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+        self.buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
 
         # occasionally sync target network
         if self.total_steps % self.target_update_freq == 0:
@@ -296,8 +307,8 @@ class DQNAgent(AbstractAgent):
             # update if ready
             if len(self.buffer) >= self.batch_size:
                 # TODO: sample batch from replay buffer
-                batch = self.buffer.sample(batch_size=self.batch_size)
-                _ = self.update_agent(batch)
+                batch, idxs, weights = self.buffer.sample(batch_size=self.batch_size)
+                self.update_agent(batch, idxs, weights)
 
             if done or truncated:
                 state, _ = self.env.reset()

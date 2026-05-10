@@ -14,7 +14,13 @@ class ReplayBuffer(AbstractBuffer):
     and evicts the oldest when capacity is exceeded.
     """
 
-    def __init__(self, capacity: int) -> None:
+    def __init__(
+        self, 
+        capacity: int,
+        alpha: float = 0.6,   
+        beta: float = 0.4, 
+        beta_increment: float = 1e-3
+    ) -> None:
         """
         Parameters
         ----------
@@ -29,6 +35,12 @@ class ReplayBuffer(AbstractBuffer):
         self.next_states: List[np.ndarray] = []
         self.dones: List[bool] = []
         self.infos: List[Dict] = []
+
+        self.alpha = alpha
+        self.beta = beta
+        self.beta_increment = beta_increment
+        self.priorities: List[float] = []
+
 
     def add(
         self,
@@ -59,6 +71,9 @@ class ReplayBuffer(AbstractBuffer):
         info : dict
             Gym info dict (can store extras).
         """
+
+        max_priority = max(self.priorities, default=1.0)
+
         if len(self.states) >= self.capacity:
             # TODO: pop the oldest element off each list (states, actions, …, infos)
             # pop oldest
@@ -76,11 +91,17 @@ class ReplayBuffer(AbstractBuffer):
         self.next_states.append(next_state)
         self.dones.append(done)
         self.infos.append(info)
+
+        self.priorities.append(max_priority)
         return
 
     def sample(
         self, batch_size: int = 32
-    ) -> List[Tuple[Any, Any, float, Any, bool, Dict]]:
+    ) -> Tuple[
+        List[Tuple[Any, Any, float, Any, bool, Dict]],
+        np.ndarray,
+        np.ndarray
+    ]:
         """
         Uniformly sample a batch of transitions.
 
@@ -93,9 +114,21 @@ class ReplayBuffer(AbstractBuffer):
         -------
         List of transitions as (state, action, reward, next_state, done, info).
         """
-        # TODO: randomly choose `batch_size` unique indices from [0, len(self.states))
-        idxs = random.sample(range(len(self.states)), batch_size)
-        return [
+
+        priorities = np.array(self.priorities, dtype=np.float32)
+        scaled_priorities = priorities ** self.alpha
+
+        probs = scaled_priorities / np.sum(scaled_priorities)
+
+        idxs = np.random.choice(len(self.states), batch_size, p=probs)
+
+        N = len(self.states)
+        weights = (N * probs[idxs]) ** (-self.beta)
+        weights /= weights.max()  # normalize
+
+        self.beta = min(1.0, self.beta + self.beta_increment)
+
+        batch = [
             (
                 self.states[i],
                 self.actions[i],
@@ -106,6 +139,15 @@ class ReplayBuffer(AbstractBuffer):
             )
             for i in idxs
         ]
+
+        return batch, idxs, weights
+    
+    def update_priorities(self, idxs: List[int], td_errors: np.ndarray):
+        """
+        Update priorities p_i <- |δ_i|
+        """
+        for i, err in zip(idxs, td_errors):
+            self.priorities[i] = abs(err) + 1e-6  # avoid zero priority
 
     def __len__(self) -> int:
         """Current number of stored transitions."""
