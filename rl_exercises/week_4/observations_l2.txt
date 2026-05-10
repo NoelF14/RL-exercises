@@ -1,4 +1,5 @@
 DQN Ablation Study with Robust Reporting (RLiable)
+-> See bottom for interpretation
 ============================================================
 
 Seeds: [0, 1, 2, 3, 4, 42, 96]
@@ -99,8 +100,8 @@ Configuration: wide_network
 
 Observations:
 ----------------------------------------
-1. RLiable reports uncertainty with bootstrap confidence intervals, instead of only showing a single mean curve.
-2. The IQM is less sensitive to unusually good or bad seeds than the plain mean, so it gives a more robust summary of typical performance.
-3. The performance profile shows how often each configuration reaches different normalized reward thresholds, which makes seed instability easier to see.
-4. The optimality gap shows how far the final policy is from the CartPole maximum score of 500. Lower is better.
-5. Add your config-specific conclusions here after inspecting the plots.
+Most configurations show similar results. 
+Only the shallow network stands out because of its high variation and rather slow learning, whereas the 
+deep network learns a lot faster, but after about 10000 frames it becomes worse. Deeper networks appear 
+to learn useful policies faster initially, but may suffer from instability or overfitting to early experiences, 
+which leads to degraded performance later in training.

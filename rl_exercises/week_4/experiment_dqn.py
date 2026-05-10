@@ -81,6 +81,7 @@ CONFIGS = [
 ]
 
 SEEDS = [0, 1, 2, 3, 4, 42, 96]
+#SEEDS = [0]
 NUM_FRAMES = 20000
 EVAL_INTERVAL = 100
 
@@ -276,6 +277,46 @@ def _plot_interval_points(
     if num_metrics > 1:
         ax.legend()
 
+def plot_l1_training_curves(results: Dict) -> None:
+    """
+    Simple L1 plots:
+    Reward across frames.
+    """
+    os.makedirs("results", exist_ok=True)
+
+    frame_grid = np.arange(EVAL_INTERVAL, NUM_FRAMES + 1, EVAL_INTERVAL)
+
+    plt.figure(figsize=(12, 8))
+
+    for config_name, seed_dict in results.items():
+        frames = np.asarray(seed_dict[0]["frames"], dtype=np.float32)
+        rewards = np.asarray(seed_dict[0]["rewards"], dtype=np.float32)
+
+        # Interpolate onto common frame grid
+        curve = np.interp(
+            frame_grid,
+                frames,
+                rewards,
+                left=rewards[0],
+                right=rewards[-1],
+        )
+
+        plt.plot(
+            frame_grid,
+            curve,
+            label=config_name,
+        )
+
+    plt.xlabel("Frames")
+    plt.ylabel("Reward")
+    plt.title("DQN Training Curves")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig("results/dqn_training_curves_l1.png", dpi=150)
+    plt.close()
+
 
 def plot_with_rliable(results: Dict) -> None:
     """
@@ -403,8 +444,20 @@ def plot_with_rliable(results: Dict) -> None:
     plt.savefig("results/dqn_robust_analysis.png", dpi=150, bbox_inches="tight")
     plt.close()
 
-    print("\n✓ Saved: results/dqn_robust_analysis.png")
+def write_observations_l1(results: Dict) -> None:
+    with open("observations_l1.txt", "w") as f:
+        f.write("L1 DQN Hyperparameter Study\n")
+        f.write("=" * 50 + "\n\n")
 
+        for config_name, seed_dict in results.items():
+
+            rewards = np.asarray(seed_dict[0]["rewards"])
+            final_reward = np.mean(rewards[-100:])
+
+            f.write(f"Configuration: {config_name}\n")
+            f.write(f"final reward: {final_reward:.2f}\n\n")
+
+        f.write("\nObservations:\n")
 
 def write_observations(results: Dict) -> None:
     """
@@ -445,25 +498,6 @@ def write_observations(results: Dict) -> None:
 
         f.write("\nObservations:\n")
         f.write("-" * 40 + "\n")
-        f.write(
-            "1. RLiable reports uncertainty with bootstrap confidence intervals, "
-            "instead of only showing a single mean curve.\n"
-        )
-        f.write(
-            "2. The IQM is less sensitive to unusually good or bad seeds than the plain mean, "
-            "so it gives a more robust summary of typical performance.\n"
-        )
-        f.write(
-            "3. The performance profile shows how often each configuration reaches different "
-            "normalized reward thresholds, which makes seed instability easier to see.\n"
-        )
-        f.write(
-            "4. The optimality gap shows how far the final policy is from the CartPole maximum "
-            "score of 500. Lower is better.\n"
-        )
-        f.write(
-            "5. Add your config-specific conclusions here after inspecting the plots.\n"
-        )
 
 
 if __name__ == "__main__":
@@ -472,10 +506,13 @@ if __name__ == "__main__":
     print("Collecting DQN results across configurations and seeds...")
     results = collect_all_results()
 
-    print("\nGenerating RLiable plots...")
+    print("Plot l1 results")
+    plot_l1_training_curves(results)
+    write_observations_l1(results)
+
+    print("Generating RLiable plots...")
     plot_with_rliable(results)
 
-    print("\nWriting observations...")
+    print("Writing observations...")
     write_observations(results)
 
-    print("\n✓ All done!")

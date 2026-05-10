@@ -1,0 +1,39 @@
+L1 DQN Hyperparameter Study
+==================================================
+
+Configuration: baseline
+final reward: 155.97
+
+Configuration: small_buffer
+final reward: 152.88
+
+Configuration: large_buffer
+final reward: 157.64
+
+Configuration: small_batch
+final reward: 149.49
+
+Configuration: large_batch
+final reward: 156.38
+
+Configuration: narrow_network
+final reward: 159.80
+
+Configuration: wide_network
+final reward: 164.13
+
+Configuration: shallow_network
+final reward: 163.92
+
+Configuration: deep_network
+final reward: 153.72
+
+Observations (from dqn_training_curves_l1.png):
+Buffer size: Large buffer started out better, but small buffer overtook the large buffer in the end
+Network depth: Shallow network performed better than deep network (big difference at 10000 to 15000 frames)
+Network width: Wide network started out better, but narrow network overtook the wide network in the end
+Batch size: Overall large batch performed better than small batch
+--> In this environment, simpler configurations often outperform more complex ones. 
+    This may be because CartPole is a relatively simple task, where high model capacity is not necessary. 
+    As a result, more complex models do not provide additional representational benefit 
+    and can even make optimization harder, leading to slower or less stable learning.
