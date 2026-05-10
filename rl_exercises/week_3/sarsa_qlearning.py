@@ -158,8 +158,8 @@ class TDAgent(AbstractAgent):
             )
         else:
             self.Q[state][action] += self.alpha * (reward - self.Q[state][action])
-        
-        #print("state: ", state, "action: ", action, "Q-value: ", self.Q[state][action])
+
+        # print("state: ", state, "action: ", action, "Q-value: ", self.Q[state][action])
 
         return self.Q[state][action]
 
@@ -202,6 +202,6 @@ class TDAgent(AbstractAgent):
         else:
             self.Q[state][action] += self.alpha * (reward - self.Q[state][action])
 
-        #print("state: ", state, "action: ", action, "Q-value: ", self.Q[state][action])
+        # print("state: ", state, "action: ", action, "Q-value: ", self.Q[state][action])
 
         return self.Q[state][action]
