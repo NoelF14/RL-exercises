@@ -105,6 +105,8 @@ class ReplayBuffer(AbstractBuffer):
             self.next_states.pop(0)
             self.dones.pop(0)
             self.infos.pop(0)
+            if self.buffer_type == "prioritized":
+                self.priorities.pop(0)
 
         # TODO: append state, action, reward, next_state, done, info to their respective lists
         self.states.append(state)
@@ -146,9 +148,8 @@ class ReplayBuffer(AbstractBuffer):
 
             probs = scaled_priorities / np.sum(scaled_priorities)
 
-            idxs = np.random.choice(len(self.states), batch_size, p=probs)
-
-            N = len(self.states)
+            N = len(self.priorities)
+            idxs = np.random.choice(N, batch_size, p=probs)
             weights = (N * probs[idxs]) ** (-self.beta)
             weights /= weights.max()  # normalize
 
@@ -171,7 +172,7 @@ class ReplayBuffer(AbstractBuffer):
         if self.buffer_type == "prioritized":
             return batch, idxs, weights
         else:
-            return batch
+            return batch, None, None
     
     def update_priorities(self, idxs: List[int], td_errors: np.ndarray):
         """

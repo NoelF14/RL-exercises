@@ -1,0 +1,16 @@
+Observations from plots_l3.png (generated with experiment_l3.py)
+
+(same plots as in l2)
+Plot 1 (training curve):
+    Surprisingly in the end the Double DQN + prioritized Replay performed worse than the other configs
+Plot 2 & 3 (final rewards & optimality gap):
+    In DQN + prioritized Replay the variance is very high, whereas in Double DQN + prioritized Replay it
+    very low
+Plot 4 (performance profile):
+    No significant differences
+
+Interpretation
+- Prioritized Replay improves learning but increases instability
+- Double DQN improves stability, not necessarily performance
+- The combined configuration is not additive (high variance & medium variance -> low variance)
+- No configuration strictly dominates the others

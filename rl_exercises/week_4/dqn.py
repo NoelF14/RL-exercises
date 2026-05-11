@@ -296,7 +296,10 @@ class DQNAgent(AbstractAgent):
         
         td_errors = target - pred
 
-        loss = (w * (td_errors ** 2)).mean()
+        if self.buffer_type == "prioritized":
+            loss = (w * (td_errors ** 2)).mean()
+        else: 
+            loss = (td_errors ** 2).mean()
 
         # gradient step
         self.optimizer.zero_grad()
