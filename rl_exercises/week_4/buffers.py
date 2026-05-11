@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Literal
 
 import random
 
@@ -12,11 +12,14 @@ class ReplayBuffer(AbstractBuffer):
 
     Stores tuples of (state, action, reward, next_state, done, info),
     and evicts the oldest when capacity is exceeded.
+
+    Addition Level 3: Prioritized Experience Replay Buffer
     """
 
     def __init__(
         self, 
         capacity: int,
+        buffer_type: Literal["default", "prioritized"] = "default",
         alpha: float = 0.6,   
         beta: float = 0.4, 
         beta_increment: float = 1e-3
@@ -26,7 +29,23 @@ class ReplayBuffer(AbstractBuffer):
         ----------
         capacity : int
             Maximum number of transitions to store.
+        buffer_type: Literal["default", "prioritized"], optional
+            default or prioritized, "default" by default
+        alpha: float, optional
+            how much prioritization isused, 0.6 by default
+        beta: float, optional
+            used to calculate weights for correcting the bias, 0.4 by default
+        beta_increment, optional
+            anneal beta from its initial value to 1, 1e-3 by default
+
+        
         """
+
+        assert buffer_type in [
+            "default",
+            "prioritized",
+        ], "type must be 'default' or 'prioritized'"
+
         super().__init__()
         self.capacity = capacity
         self.states: List[np.ndarray] = []
@@ -36,10 +55,12 @@ class ReplayBuffer(AbstractBuffer):
         self.dones: List[bool] = []
         self.infos: List[Dict] = []
 
-        self.alpha = alpha
-        self.beta = beta
-        self.beta_increment = beta_increment
-        self.priorities: List[float] = []
+        self.buffer_type = buffer_type
+        if (self.buffer_type == "prioritized"):
+            self.alpha = alpha
+            self.beta = beta
+            self.beta_increment = beta_increment
+            self.priorities: List[float] = []
 
 
     def add(
@@ -72,7 +93,8 @@ class ReplayBuffer(AbstractBuffer):
             Gym info dict (can store extras).
         """
 
-        max_priority = max(self.priorities, default=1.0)
+        if self.buffer_type == "prioritized":
+            max_priority = max(self.priorities, default=1.0)
 
         if len(self.states) >= self.capacity:
             # TODO: pop the oldest element off each list (states, actions, …, infos)
@@ -92,15 +114,17 @@ class ReplayBuffer(AbstractBuffer):
         self.dones.append(done)
         self.infos.append(info)
 
-        self.priorities.append(max_priority)
+        if self.buffer_type == "prioritized":
+            self.priorities.append(max_priority)
+
         return
 
     def sample(
         self, batch_size: int = 32
     ) -> Tuple[
         List[Tuple[Any, Any, float, Any, bool, Dict]],
-        np.ndarray,
-        np.ndarray
+        np.ndarray | None,
+        np.ndarray | None
     ]:
         """
         Uniformly sample a batch of transitions.
@@ -113,20 +137,24 @@ class ReplayBuffer(AbstractBuffer):
         Returns
         -------
         List of transitions as (state, action, reward, next_state, done, info).
+        Indexes (only relevant for prioritized)
+        Weights (only relevant for prioritized)
         """
+        if self.buffer_type == "prioritized":
+            priorities = np.array(self.priorities, dtype=np.float32)
+            scaled_priorities = priorities ** self.alpha
 
-        priorities = np.array(self.priorities, dtype=np.float32)
-        scaled_priorities = priorities ** self.alpha
+            probs = scaled_priorities / np.sum(scaled_priorities)
 
-        probs = scaled_priorities / np.sum(scaled_priorities)
+            idxs = np.random.choice(len(self.states), batch_size, p=probs)
 
-        idxs = np.random.choice(len(self.states), batch_size, p=probs)
+            N = len(self.states)
+            weights = (N * probs[idxs]) ** (-self.beta)
+            weights /= weights.max()  # normalize
 
-        N = len(self.states)
-        weights = (N * probs[idxs]) ** (-self.beta)
-        weights /= weights.max()  # normalize
-
-        self.beta = min(1.0, self.beta + self.beta_increment)
+            self.beta = min(1.0, self.beta + self.beta_increment)
+        else:
+            idxs = random.sample(range(len(self.states)), batch_size) 
 
         batch = [
             (
@@ -140,7 +168,10 @@ class ReplayBuffer(AbstractBuffer):
             for i in idxs
         ]
 
-        return batch, idxs, weights
+        if self.buffer_type == "prioritized":
+            return batch, idxs, weights
+        else:
+            return batch
     
     def update_priorities(self, idxs: List[int], td_errors: np.ndarray):
         """

@@ -2,7 +2,7 @@
 Deep Q-Learning implementation.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Literal
 
 import gymnasium as gym
 import hydra
@@ -61,6 +61,9 @@ class DQNAgent(AbstractAgent):
         num_hidden_layers: int = 2,
         seed: int = 0,
         hidden_dim: int = 64,
+
+        buffer_type: Literal["default", "prioritized"] = "default",
+        dqn_type: Literal["default", "double_dqn"] = "default"
     ) -> None:
         """
         Initialize replay buffer, Q‐networks, optimizer, and hyperparameters.
@@ -87,7 +90,23 @@ class DQNAgent(AbstractAgent):
             How many updates between target‐network syncs.
         seed : int
             RNG seed.
+        
+        buffer_type: Literal["default", "prioritized"], optional
+            default or prioritized, "default" by default
+        dqn_type: Literal["default", "double_dqn"] optional
+            default or double_dqn, "default" by default
         """
+
+        assert buffer_type in [
+            "default",
+            "prioritized",
+        ], "buffer_type must be 'default' or 'prioritized'"
+
+        assert dqn_type in [
+            "default",
+            "double_dqn",
+        ], "dqn_type must be 'default' or 'prioritized'"
+
         super().__init__(
             env,
             buffer_capacity,
@@ -123,7 +142,7 @@ class DQNAgent(AbstractAgent):
         )
 
         self.optimizer = optim.Adam(self.q.parameters(), lr=lr)
-        self.buffer = ReplayBuffer(buffer_capacity)
+        self.buffer = ReplayBuffer(buffer_capacity, buffer_type = buffer_type)
 
         # hyperparams
         self.batch_size = batch_size
@@ -134,6 +153,9 @@ class DQNAgent(AbstractAgent):
         self.target_update_freq = target_update_freq
 
         self.total_steps = 0  # for ε decay and target sync
+
+        self.buffer_type = buffer_type
+        self.dqn_type = dqn_type
 
     def epsilon(self) -> float:
         """
@@ -226,8 +248,8 @@ class DQNAgent(AbstractAgent):
     def update_agent(
         self, 
         training_batch: List[Tuple[Any, Any, float, Any, bool, Dict]],
-        idxs,
-        weights
+        idxs: np.ndarray | None = None,
+        weights: np.ndarray | None = None
     ) -> float:
         """
         Perform one gradient update on a batch of transitions.
@@ -236,6 +258,10 @@ class DQNAgent(AbstractAgent):
         ----------
         training_batch : list of transitions
             Each is (state, action, reward, next_state, done, info).
+        idxs: np.ndarray | None, optional
+            Only relevant for prioritized buffer, None by default
+        weights: np.ndarray | None, optional
+            Only relevant for prioritized buffer, None by default
 
         Returns
         -------
@@ -249,7 +275,8 @@ class DQNAgent(AbstractAgent):
         r = torch.tensor(np.array(rewards), dtype=torch.float32)
         s_next = torch.tensor(np.array(next_states), dtype=torch.float32)
         mask = torch.tensor(np.array(dones), dtype=torch.float32)
-        w = torch.tensor(weights, dtype=torch.float32)
+        if self.buffer_type == "prioritized":
+            w = torch.tensor(weights, dtype=torch.float32)
 
         # current Q estimates for taken actions
         # TODO: pass batched states through self.q and gather Q(s,a)
@@ -257,10 +284,15 @@ class DQNAgent(AbstractAgent):
 
         # TODO: compute TD target with frozen network
         with torch.no_grad():
-            next_actions = self.q(s_next).argmax(dim=1, keepdim=True)
-            next_q = self.target_q(s_next).gather(1, next_actions).squeeze(1)
+            if self.dqn_type == "double_dqn":
+                next_actions = self.q(s_next).argmax(dim=1, keepdim=True)
+                next_q = self.target_q(s_next).gather(1, next_actions).squeeze(1)
 
-            target = r + (1 - mask) * self.gamma * next_q
+                target = r + (1 - mask) * self.gamma * next_q
+            else:
+                next_q = self.target_q(s_next).max(dim=1).values
+
+                target = r + (1 - mask) * self.gamma * next_q
         
         td_errors = target - pred
 
@@ -271,7 +303,8 @@ class DQNAgent(AbstractAgent):
         loss.backward()
         self.optimizer.step()
 
-        self.buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
+        if self.buffer_type == "prioritized":
+            self.buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
 
         # occasionally sync target network
         if self.total_steps % self.target_update_freq == 0:
@@ -346,8 +379,8 @@ class DQNAgent(AbstractAgent):
             ep_reward += reward
 
             if len(self.buffer) >= self.batch_size:
-                batch = self.buffer.sample(batch_size=self.batch_size)
-                self.update_agent(batch)
+                batch, idxs, weights = self.buffer.sample(batch_size=self.batch_size)
+                self.update_agent(batch, idxs, weights)
 
             if done or truncated:
                 state, _ = self.env.reset()
