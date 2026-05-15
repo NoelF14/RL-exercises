@@ -83,10 +83,20 @@ class Policy(nn.Module):
         torch.Tensor
             Softmax probabilities over actions, shape (batch_size, n_actions).
         """
-        # TODO: Apply fc1 followed by ReLU (Flatten input if needed)
-        # TODO: Apply fc2 to get logits
-        # TODO: Return softmax over logits along the last dimension
-        pass
+        #Flatten input if needed
+        if x.dim() > 1:
+            x = x.view(x.size(0), -1) 
+        else:    
+            x = x.view(1, -1)
+        
+        #Apply fc1 followed by ReLU 
+        x = torch.relu(self.fc1(x))
+
+        #Apply fc2 to get logits
+        logits = self.fc2(x)
+
+        #Return softmax over logits along the last dimension
+        return torch.softmax(logits, dim=-1)
 
 
 class REINFORCEAgent(AbstractAgent):
@@ -157,10 +167,18 @@ class REINFORCEAgent(AbstractAgent):
         info_out : dict
             Contains 'log_prob' if in training mode; empty if evaluating.
         """
-        # TODO: Pass state through the policy network to get action probabilities
+        # Pass state through the policy network to get action probabilities
         # If evaluate is True, return the action with highest probability
         # Otherwise, sample from the action distribution and return the log-probability as a key in the dictionary (Hint: use torch.distributions.Categorical)
-        return 0, {}  # Placeholder return value
+        state = torch.from_numpy(state).float()
+        probs = self.policy.forward(state)
+        if evaluate:
+            return torch.argmax(probs, dim=-1), {}
+        else:
+            dist = torch.distributions.Categorical(probs=probs)
+            action = dist.sample()
+            log_prob = dist.log_prob(action)
+            return action, {"log_prob": log_prob}
 
     def compute_returns(self, rewards: List[float]) -> torch.Tensor:
         """
@@ -176,12 +194,17 @@ class REINFORCEAgent(AbstractAgent):
         torch.Tensor
             Discounted returns tensor of shape (len(rewards),).
         """
-        # TODO: Initialize running return R = 0
-        # TODO: Iterate over rewards and compute the return-to-go:
-        #       - Update R = r + gamma * R
-        #       - Insert R at the beginning of the returns list
-        # TODO: Convert the list of returns to a torch.Tensor and return
-        pass
+        #Initialize running return R = 0
+        R = 0
+        returns = []
+        #Iterate over rewards and compute the return-to-go:
+        #- Update R = r + gamma * R
+        #- Insert R at the beginning of the returns list
+        for r in rewards:
+            R = r + self.gamma * R
+            returns = [R] + returns
+        #Convert the list of returns to a torch.Tensor and return
+        return torch.tensor(returns)
 
     def update_agent(
         self,
@@ -210,9 +233,9 @@ class REINFORCEAgent(AbstractAgent):
         returns_t = self.compute_returns(rewards)
 
         # normalize advantages
-        # TODO: Normalize advantages with mean and standard deviation,
+        # Normalize advantages with mean and standard deviation,
         # and add 1e-8 to the denominator to avoid division by zero
-        advantages = returns_t
+        advantages = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-8)
 
         lp_tensor = torch.stack(log_probs)
         loss = -torch.sum(lp_tensor * advantages)
@@ -275,11 +298,21 @@ class REINFORCEAgent(AbstractAgent):
         """
         self.policy.eval()
         returns: List[float] = []
-        # TODO: rollout num_episodes in eval_env and aggregate undiscounted returns across episodes
-
+        #rollout num_episodes in eval_env and aggregate undiscounted returns across episodes
+        for i in range(num_episodes):
+            state, _ = eval_env.reset()
+            done = False
+            episode_return = 0
+            while not done:
+                action, _ = self.predict_action(state)
+                state, reward, terminated, truncated, _ = eval_env.step(action)
+                episode_return += reward
+                done = terminated or truncated
+            returns.append(episode_return)
+                
         self.policy.train()  # Set back to training mode
 
-        # TODO: Return the mean and std of the returns across episodes
+        #Return the mean and std of the returns across episodes
         mean = np.mean(returns) if returns else 0.0
         std = np.std(returns) if returns else 0.0
         return mean, std
