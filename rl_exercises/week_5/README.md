@@ -13,7 +13,7 @@ This week you will implement the REINFORCE policy gradient algorithm in order to
 ## Level 2: Empirical Understanding
 Now we want to gain some more experience with this algorithm, which should be possible even if a lot of your runs don't look very promising. Here are some variations to try:
 - How does the length of the trajectories affect the training?
-- Does the same network architecture and learning rate work for `LunarLander-v2`?
+- Does the same network architecture and learning rate work for `LunarLander-v3`?
 - How is the sample complexity (how many steps it takes to solve the environment) of this algorithm related to the DQN from the last exercise?
 Please write your answers in your `observations_l2.txt`.
 

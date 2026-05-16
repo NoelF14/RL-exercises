@@ -173,12 +173,12 @@ class REINFORCEAgent(AbstractAgent):
         state = torch.from_numpy(state).float()
         probs = self.policy.forward(state)
         if evaluate:
-            return torch.argmax(probs, dim=-1), {}
+            return torch.argmax(probs, dim=-1).item(), {}
         else:
             dist = torch.distributions.Categorical(probs=probs)
             action = dist.sample()
-            log_prob = dist.log_prob(action)
-            return action, {"log_prob": log_prob}
+            log_prob = dist.log_prob(action).squeeze() 
+            return action.item(), {"log_prob": log_prob}
 
     def compute_returns(self, rewards: List[float]) -> torch.Tensor:
         """
@@ -238,6 +238,7 @@ class REINFORCEAgent(AbstractAgent):
         advantages = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-8)
 
         lp_tensor = torch.stack(log_probs)
+
         loss = -torch.sum(lp_tensor * advantages)
 
         self.optimizer.zero_grad()
@@ -304,7 +305,7 @@ class REINFORCEAgent(AbstractAgent):
             done = False
             episode_return = 0
             while not done:
-                action, _ = self.predict_action(state)
+                action, _ = self.predict_action(state, evaluate=True)
                 state, reward, terminated, truncated, _ = eval_env.step(action)
                 episode_return += reward
                 done = terminated or truncated
@@ -322,6 +323,7 @@ class REINFORCEAgent(AbstractAgent):
         num_episodes: int,
         eval_interval: int = 10,
         eval_episodes: int = 5,
+        episodes_per_trajectory: int = 1,
     ) -> None:
         """
         Train the agent on-policy for a number of episodes.
@@ -334,10 +336,15 @@ class REINFORCEAgent(AbstractAgent):
             Frequency of evaluation prints (default is 10).
         """
         eval_env = gym.make(self.env.spec.id)  # fresh copy for eval
+        total_steps = 0
+        batch: List[Tuple[Any, ...]] = []
+        episode_returns = []
+        episodes_in_batch = 0
+
         for ep in range(1, num_episodes + 1):
             state, _ = self.env.reset()
             done = False
-            batch: List[Tuple[Any, ...]] = []
+            episode_return = 0.0
 
             while not done:
                 action, info = self.predict_action(state)
@@ -345,17 +352,30 @@ class REINFORCEAgent(AbstractAgent):
                 done = term or trunc
                 batch.append((state, action, float(reward), next_state, done, info))
                 state = next_state
-
-            loss = self.update_agent(batch)
-            total_return = sum(r for _, _, r, *_ in batch)
+                episode_return += reward
+                total_steps += 1
+            
+            episodes_in_batch += 1
             self.total_episodes += 1
+            episode_returns.append(episode_return)
 
-            if ep % 10 == 0:
-                print(f"[Train] Ep {ep:3d} Return {total_return:5.1f} Loss {loss:.3f}")
+            if episodes_in_batch == episodes_per_trajectory:
+                loss = self.update_agent(batch)
+                avg_return = sum(episode_returns) / len(episode_returns)
+
+                print(
+                    f"[Train] Ep {ep:3d} "
+                    f"AvgReturn {avg_return:5.1f} "
+                    f"Loss {loss:.3f}"
+                )
+
+                episodes_in_batch = 0
+                episode_returns = []
+                batch = []
 
             if ep % eval_interval == 0:
                 mean_ret, std_ret = self.evaluate(eval_env, num_episodes=eval_episodes)
-                print(f"[Eval ] Ep {ep:3d} AvgReturn {mean_ret:5.1f} ± {std_ret:4.1f}")
+                print(f"[Eval ] Ep {ep:3d} Steps {total_steps}, AvgReturn {mean_ret:5.1f} ± {std_ret:4.1f}")
 
         print("Training complete.")
 
@@ -402,6 +422,7 @@ def main(cfg: DictConfig) -> None:
         num_episodes=cfg.train.episodes,
         eval_interval=cfg.train.eval_interval,
         eval_episodes=cfg.train.eval_episodes,
+        episodes_per_trajectory=cfg.train.episodes_per_trajectory,
     )
 
 

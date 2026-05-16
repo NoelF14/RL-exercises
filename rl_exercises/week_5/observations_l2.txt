@@ -1,0 +1,18 @@
+-  How does the length of the trajectories affect the training?
+    (Episodes per trajectory: 1,5,10; total episodes: 1000,5000)
+    1 episode: Ep 1000 Steps 26983, AvgReturn  72.2 ± 23.1
+    1 episode: Ep 5000 Steps 827957, AvgReturn 500.0 ±  0.0
+    5 episodes: Ep 1000 Steps 21060, AvgReturn   8.6 ±  0.8
+    5 episodes: Ep 5000 Steps 123452, AvgReturn 129.6 ± 44.6
+    10 episodes: Ep 5000 Steps 109956, AvgReturn  34.4 ±  4.1
+    --> longer trajectories lead to slower training (in terms of episodes needed)
+        because there are less updates.
+
+- Does the same network architecture and learning rate work for `LunarLander-v3`?
+    CartPole-v1 learns well (improves return from about 9 to about 70 to 90)    
+    LunarLander-v3 does not learn well (the return stays at about -300 to -200)
+
+- How is the sample complexity (how many steps it takes to solve the environment) of this algorithm related to the DQN from the last exercise?
+    policy_gradient: 8925 steps for 400 episodes
+    DQN: 9801 steps for 405 episodes (baseline config)
+    They take about the same amout of steps to solve the environment
