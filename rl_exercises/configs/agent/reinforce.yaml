@@ -1,6 +1,7 @@
 # configs/reinforce.yaml
 
 # Gymnasium environment settings
+# LunarLander-v3/CartPole-v1
 env:
   name: CartPole-v1
 
@@ -9,12 +10,13 @@ seed: 0
 
 # Agent hyperparameters
 agent:
-  lr: 1e-2
+  lr: 1e-4
   gamma: 0.99
   hidden_size: 128
 
 # Training settings
 train:
-  episodes: 1000        # total episodes to train
+  episodes: 5000       # total episodes to train
   eval_interval: 50     # how often (in episodes) to run evaluation
   eval_episodes: 5      # number of episodes to evaluate
+  episodes_per_trajectory: 1 #number of episodes per trajectory

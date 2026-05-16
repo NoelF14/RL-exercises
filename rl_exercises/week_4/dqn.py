@@ -368,6 +368,7 @@ class DQNAgent(AbstractAgent):
         """
         state, _ = self.env.reset()
         ep_reward = 0.0
+        ep_num = 0
 
         episode_rewards: List[float] = []
         episode_frames: List[int] = []
@@ -392,7 +393,10 @@ class DQNAgent(AbstractAgent):
                 episode_frames.append(frame)
                 rolling_rewards.append(np.mean(episode_rewards[-10:]))
 
+                #print(f"Episode {ep_num} ended at frame {frame}, reward {ep_reward:.1f}")
+
                 ep_reward = 0.0
+                ep_num += 1
 
         return np.array(episode_frames), np.array(rolling_rewards)
 
