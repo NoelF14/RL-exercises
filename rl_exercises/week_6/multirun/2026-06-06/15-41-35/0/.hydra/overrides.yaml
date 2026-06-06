@@ -1,0 +1,3 @@
+- env.name=CartPole-v1
+- agent.baseline_type=avg
+- seed=2

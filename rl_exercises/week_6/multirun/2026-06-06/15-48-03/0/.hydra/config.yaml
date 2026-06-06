@@ -1,0 +1,15 @@
+env:
+  name: CartPole-v1
+seed: 0
+agent:
+  lr_actor: 0.005
+  lr_critic: 0.01
+  gamma: 0.99
+  gae_lambda: 0.95
+  hidden_size: 128
+  baseline_type: gae
+  baseline_decay: 0.9
+train:
+  total_steps: 50000
+  eval_interval: 2500
+  eval_episodes: 5

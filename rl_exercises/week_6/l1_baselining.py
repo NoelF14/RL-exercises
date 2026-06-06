@@ -29,17 +29,31 @@ def run_experiments():
 
         subprocess.run(cmd, check=True)
 
-def load_results(log_dir="multirun"):
+def load_results():
+    # also check Hydra multirun layout
+    base = Path("multirun")
+
     all_data = []
 
-    for path in Path(log_dir).rglob("*.csv"):
+    paths = list(base.rglob("*.csv"))
+
+    for path in paths:
         df = pd.read_csv(path)
 
         parts = path.parts
 
         baseline = next((p for p in parts if p in BASELINES), "unknown")
-        env = next((p for p in parts if "CartPole" in p or "LunarLander" in p), "unknown")
-        seed = int(path.stem.split("_")[-1])  # seed_0.csv
+        env = next((p for p in parts if any(e in p for e in ENVS)), "unknown")
+
+        # try to extract seed from filename like seed_0.csv
+        stem = path.stem
+        seed = None
+        for token in stem.split("_"):
+            if token.isdigit():
+                seed = int(token)
+                break
+        if seed is None:
+            seed = -1
 
         df["baseline"] = baseline
         df["env"] = env
@@ -47,82 +61,67 @@ def load_results(log_dir="multirun"):
 
         all_data.append(df)
 
+    if len(all_data) == 0:
+        print("WARNING: no CSV log files found under searched paths  (multirun/)")
+        return pd.DataFrame()
+
     return pd.concat(all_data, ignore_index=True)
 
-def to_rliable_format(df, env_name):
-    results = {}
-
-    env_df = df[df["env"] == env_name]
-
-    for baseline in BASELINES:
-        runs = []
-
-        for seed in SEEDS:
-            run = env_df[
-                (env_df["baseline"] == baseline) &
-                (env_df["seed"] == seed)
-            ].sort_values("step")
-
-            runs.append(run["eval_return_mean"].dropna().values)
-
-        results[baseline] = np.array(runs)
-
-    return results
-
-def plot_rliable(results, df, env_name):
-    aggregate_func = lambda x: np.array([
-        metrics.aggregate_median(x),
-        metrics.aggregate_iqm(x),
-    ])
-
-    scores, score_cis = rly.get_interval_estimates(
-        results,
-        aggregate_func,
-        reps=2000
-    )
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-
-    plot_utils.plot_interval_estimates(
-        scores,
-        score_cis,
-        metric_names=["Median", "IQM"],
-        ax=ax
-    )
-
-    ax.set_title(f"Final Performance - {env_name}")
-
-    Path("plots").mkdir(exist_ok=True)
-    fig.savefig(f"plots/{env_name}_baselines.png", dpi=300, bbox_inches="tight")
-    plt.close(fig)
+def plot_training_curves_with_ci(df, env_name, BASELINES):
+    env_df = df[df["env"] == env_name].copy()
+    env_df = env_df.dropna(subset=["eval_return_mean"])
 
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    env_df = df[df["env"] == env_name]
 
     for baseline in BASELINES:
         baseline_df = env_df[env_df["baseline"] == baseline]
 
-        eval_df = baseline_df.dropna(subset=["eval_return_mean"])
-
-        if len(eval_df) == 0:
-            print(f"WARNING: no eval data for {baseline} in {env_name}")
+        if len(baseline_df) == 0:
+            print(f"WARNING: no data for baseline {baseline}")
             continue
 
+        # Step × Seed Matrix
+        pivot = baseline_df.pivot_table(
+            index="step",
+            columns="seed",
+            values="eval_return_mean"
+        ).sort_index()
+
+        # Mean over seeds
+        mean = pivot.mean(axis=1)
+
+        # Confidence interval (95%)
+        std = pivot.std(axis=1)
+        n = pivot.count(axis=1)
+
+        ci = 1.96 * std / np.sqrt(n)
+
+        # Plot mean
         ax.plot(
-            eval_df["step"],
-            eval_df["eval_return_mean"],
+            pivot.index,
+            mean,
             label=baseline
         )
 
-    ax.set_title(f"Training Curves - {env_name}")
+        # Fill CI
+        ax.fill_between(
+            pivot.index,
+            mean - ci,
+            mean + ci,
+            alpha=0.2
+        )
+
+    ax.set_title(f"Training Curves (Mean ± 95% CI) - {env_name}")
     ax.set_xlabel("Steps")
     ax.set_ylabel("Return")
 
     ax.legend()
     fig.tight_layout()
 
-    fig.savefig(f"plots/{env_name}_training_curves.png", dpi=300, bbox_inches="tight")
+    Path("plots").mkdir(exist_ok=True)
+    fig.savefig(f"plots/{env_name}_training_curves_ci.png",
+                dpi=300, bbox_inches="tight")
+
     plt.close(fig)
 
 def main():
@@ -131,8 +130,7 @@ def main():
     df = load_results()
 
     for env in ENVS:
-        results = to_rliable_format(df, env)
-        plot_rliable(results, df, env)
+        plot_training_curves_with_ci(df, env, BASELINES)
 
 if __name__ == "__main__":
     main()
