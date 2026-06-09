@@ -102,6 +102,7 @@ class DQNAgent(AbstractAgent):
         set_seed(env, seed)
 
         obs_dim = env.observation_space.shape[0]
+       
         n_actions = env.action_space.n
 
         # main Q‐network and frozen target
