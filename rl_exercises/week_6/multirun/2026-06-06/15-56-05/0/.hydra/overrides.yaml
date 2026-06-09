@@ -1,0 +1,3 @@
+- env.name=LunarLander-v3
+- agent.baseline_type=none
+- seed=2

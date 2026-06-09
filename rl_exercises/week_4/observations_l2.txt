@@ -1,0 +1,107 @@
+DQN Ablation Study with Robust Reporting (RLiable)
+-> See bottom for interpretation
+============================================================
+
+Seeds: [0, 1, 2, 3, 4, 42, 96]
+Training frames per run: 20000
+Final score window: last 100 episodes
+CartPole normalization: reward / 500.0
+
+Configuration: baseline
+----------------------------------------
+  IQM reward:              154.16
+  Median reward:           155.13
+  Mean reward:             155.13
+  Std reward:              6.50
+  Min/Max reward:          147.85 / 167.28
+  Optimality gap:          0.6897
+  Per-seed final rewards:  [149.23 159.09 147.85 154.07 149.63 158.8  167.28]
+
+Configuration: deep_network
+----------------------------------------
+  IQM reward:              149.79
+  Median reward:           149.58
+  Mean reward:             149.58
+  Std reward:              7.35
+  Min/Max reward:          138.35 / 159.72
+  Optimality gap:          0.7008
+  Per-seed final rewards:  [140.3  138.35 159.72 147.34 152.18 155.43 153.72]
+
+Configuration: large_batch
+----------------------------------------
+  IQM reward:              157.06
+  Median reward:           154.63
+  Mean reward:             154.63
+  Std reward:              9.23
+  Min/Max reward:          134.09 / 163.05
+  Optimality gap:          0.6907
+  Per-seed final rewards:  [156.   160.27 163.05 159.65 134.09 159.43 149.95]
+
+Configuration: large_buffer
+----------------------------------------
+  IQM reward:              158.77
+  Median reward:           155.90
+  Mean reward:             155.90
+  Std reward:              9.58
+  Min/Max reward:          134.33 / 163.16
+  Optimality gap:          0.6882
+  Per-seed final rewards:  [151.06 159.45 159.09 163.16 134.33 161.57 162.67]
+
+Configuration: narrow_network
+----------------------------------------
+  IQM reward:              157.85
+  Median reward:           158.22
+  Mean reward:             158.22
+  Std reward:              10.19
+  Min/Max reward:          145.00 / 173.26
+  Optimality gap:          0.6836
+  Per-seed final rewards:  [153.39 150.63 168.48 150.01 145.   166.73 173.26]
+
+Configuration: shallow_network
+----------------------------------------
+  IQM reward:              132.38
+  Median reward:           134.81
+  Mean reward:             134.81
+  Std reward:              20.61
+  Min/Max reward:          108.18 / 173.59
+  Optimality gap:          0.7304
+  Per-seed final rewards:  [173.59 122.92 108.18 125.41 150.73 142.71 120.12]
+
+Configuration: small_batch
+----------------------------------------
+  IQM reward:              153.15
+  Median reward:           152.75
+  Mean reward:             152.75
+  Std reward:              4.79
+  Min/Max reward:          144.76 / 158.76
+  Optimality gap:          0.6945
+  Per-seed final rewards:  [146.71 153.12 158.76 153.57 144.76 156.14 156.2 ]
+
+Configuration: small_buffer
+----------------------------------------
+  IQM reward:              155.24
+  Median reward:           155.56
+  Mean reward:             155.56
+  Std reward:              6.46
+  Min/Max reward:          146.67 / 166.03
+  Optimality gap:          0.6889
+  Per-seed final rewards:  [152.11 162.55 166.03 158.43 150.5  146.67 152.62]
+
+Configuration: wide_network
+----------------------------------------
+  IQM reward:              154.67
+  Median reward:           154.79
+  Mean reward:             154.79
+  Std reward:              7.15
+  Min/Max reward:          143.90 / 166.26
+  Optimality gap:          0.6904
+  Per-seed final rewards:  [161.54 166.26 156.51 154.32 147.18 153.78 143.9 ]
+
+
+Observations:
+----------------------------------------
+Most configurations show similar results. 
+Only the shallow network stands out because of its high variation and rather slow learning, whereas the 
+deep network learns a lot faster, but after about 10000 frames it becomes worse. Deeper networks appear 
+to learn useful policies faster initially, but may suffer from instability or overfitting to early experiences, 
+which leads to degraded performance later in training.
