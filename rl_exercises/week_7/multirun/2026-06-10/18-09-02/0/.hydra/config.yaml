@@ -1,14 +1,9 @@
-# configs/agent/rnd_ppo.yaml
-# Hydra configuration for RNDPPOAgent training.
-
 env:
   name: LunarLander-v3
-
 seed: 0
-
 agent:
-  lr_actor: 5e-4
-  lr_critic: 1e-3
+  lr_actor: 0.0005
+  lr_critic: 0.001
   gamma: 0.99
   gae_lambda: 0.95
   clip_eps: 0.2
@@ -17,13 +12,11 @@ agent:
   ent_coef: 0.01
   vf_coef: 0.5
   hidden_size: 128
-
 rnd:
   hidden_size: 128
   n_layers: 2
-  update_freq: 4        # update RND predictor every N steps
-  reward_weight: 0.1    # scale factor applied to raw RND error before adding to reward
-
+  update_freq: 4
+  reward_weight: 0.1
 train:
   total_steps: 20000
   eval_interval: 1000

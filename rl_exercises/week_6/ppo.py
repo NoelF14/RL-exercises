@@ -4,7 +4,9 @@ On-policy Proximal Policy Optimization (PPO) with GAE, clipped surrogate objecti
 value-loss coefficient, and entropy bonus, trained for a total number of environment steps.
 """
 
+import csv
 from typing import Any, List, Tuple
+from hydra.core.hydra_config import HydraConfig
 
 import gymnasium as gym
 import numpy as np
@@ -204,6 +206,7 @@ class PPOAgent(AbstractAgent):
         total_steps: int,
         eval_interval: int = 10000,
         eval_episodes: int = 5,
+        csv_path: str = "results.csv"
     ) -> None:
         eval_env = gym.make(self.env.spec.id)
         step_count = 0
@@ -227,6 +230,10 @@ class PPOAgent(AbstractAgent):
                     print(
                         f"[Eval ] Step {step_count:6d} AvgReturn {mean_r:5.1f} ± {std_r:4.1f}"
                     )
+
+                    with open(csv_path, "a", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([step_count, mean_r, std_r])
 
             # PPO update
             policy_loss, value_loss, entropy_loss = self.update(trajectory)
@@ -272,10 +279,22 @@ def main(cfg: DictConfig) -> None:
         seed=cfg.seed,
         hidden_size=cfg.agent.hidden_size,
     )
+
+    run_dir = HydraConfig.get().runtime.output_dir
+    csv_dir = os.path.join(run_dir, "ppo")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    csv_path = os.path.join(csv_dir, f"seed_{cfg.seed}.csv")
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "mean_return", "std_return"])
+
     agent.train(
         cfg.train.total_steps,
         cfg.train.eval_interval,
         cfg.train.eval_episodes,
+        csv_path=csv_path
     )
 
 

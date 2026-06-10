@@ -1,0 +1,18 @@
+env:
+  name: LunarLander-v3
+seed: 1
+agent:
+  lr_actor: 0.0005
+  lr_critic: 0.001
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  epochs: 4
+  batch_size: 64
+  ent_coef: 0.01
+  vf_coef: 0.5
+  hidden_size: 128
+train:
+  total_steps: 20000
+  eval_interval: 1000
+  eval_episodes: 5

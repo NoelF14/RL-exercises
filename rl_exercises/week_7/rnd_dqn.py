@@ -2,7 +2,10 @@
 Deep Q-Learning with RND implementation.
 """
 
+import csv
+import os
 from typing import Any, Dict, List, Tuple
+from hydra.core.hydra_config import HydraConfig
 
 import minigrid
 import gymnasium as gym
@@ -164,7 +167,7 @@ class RNDDQNAgent(DQNAgent):
         bonus = self.rnd_reward_weight * error.item()
         return bonus
 
-    def train(self, num_frames: int, eval_interval: int = 1000) -> None:
+    def train(self, num_frames: int, eval_interval: int = 1000, csv_path: str = "results.csv") -> None:
         """
         Run a training loop for a fixed number of frames.
 
@@ -174,6 +177,8 @@ class RNDDQNAgent(DQNAgent):
             Total environment steps.
         eval_interval : int
             Every this many episodes, print average reward.
+        csv_path : str
+            Path to the CSV file for logging results.
         """
         state, _ = self.env.reset()
         ep_reward = 0.0
@@ -208,12 +213,18 @@ class RNDDQNAgent(DQNAgent):
                 episode_rewards.append(ep_reward)
                 steps.append(frame)
                 ep_reward = 0.0
-                # logging
-                if len(recent_rewards) % 10 == 0:
-                    avg = np.mean(recent_rewards[-10:])
-                    print(
-                        f"Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
-                    )
+            
+            # logging
+            if frame % eval_interval == 0:
+                avg = np.mean(recent_rewards[-10:]) if recent_rewards else 0.0
+                std = np.std(recent_rewards[-10:]) if recent_rewards else 0.0
+                print(
+                    f"[Train] Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
+                )
+
+                with open(csv_path, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([frame, avg, std])
 
         print("Training complete.")
 
@@ -245,7 +256,18 @@ def main(cfg: DictConfig):
         rnd_reward_weight=cfg.rnd.reward_weight,
     )
 
-    agent.train(cfg.train.num_frames, cfg.train.eval_interval)
+    run_dir = HydraConfig.get().runtime.output_dir
+    csv_dir = os.path.join(run_dir, "rnd_dqn")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    csv_path = os.path.join(csv_dir, f"seed_{cfg.seed}.csv")
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "mean_return", "std_return"])
+        
+
+    agent.train(cfg.train.num_frames, cfg.train.eval_interval, csv_path=csv_path)
 
 
 if __name__ == "__main__":
