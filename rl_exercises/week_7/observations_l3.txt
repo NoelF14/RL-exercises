@@ -1,0 +1,20 @@
+The DQN ensemble requires more training time due to the use of multiple actors 
+and multiple Q-network heads. As a result, I was unable to conduct extensive hyperparameter or 
+multi-seed experiments.
+The results from a single training run (see plots/Level_3_training_curves.png) 
+indicate that the DQN ensemble achieves better sample efficiency compared to 
+the rnd_dqn, in the sense that it requires fewer environment steps 
+to reach comparable reward levels. However, training for 100,000 steps is significantly 
+more computationally expensive, which could potentially be mitigated through improved 
+parallelization.
+In the early phase of training (approximately the first 50,000 steps), 
+both methods show similar performance and learning speed. The advantages of the ensemble 
+approach become more apparent in the later phase, where the DQN ensemble continues to improve 
+more consistently, while the rnd_dqn tends to plateau earlier.
+This suggests that the ensemble-based exploration mechanism improves long-term exploration 
+behavior rather than immediate learning speed (focus on parts of uncertainty where improvement is 
+still possivle). In early training there are many possibilities to find better policies by random 
+exploration and function approximation noise, where both methods behave similarly. Over time, 
+the epistemic uncertainty estimates provided by the ensemble appear to help the agent escape 
+suboptimal policies and sustain improvement, suggesting a more robust exploration mechanism 
+compared to simply adding an intrinsic reward signal as used in the RND-based approach.

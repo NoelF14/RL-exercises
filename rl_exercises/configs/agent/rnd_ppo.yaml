@@ -26,5 +26,5 @@ rnd:
 
 train:
   total_steps: 20000
-  eval_interval: 10000
+  eval_interval: 1000
   eval_episodes: 5

@@ -1,0 +1,17 @@
+env:
+  name: LunarLander-v3
+seed: 0
+agent:
+  buffer_capacity: 10000
+  batch_size: 32
+  lr: 0.001
+  gamma: 0.99
+  epsilon_start: 1.0
+  epsilon_final: 0.01
+  epsilon_decay: 500
+  target_update_freq: 1000
+  hidden_dim: 64
+  num_hidden_layers: 2
+train:
+  num_frames: 20000
+  eval_interval: 1000

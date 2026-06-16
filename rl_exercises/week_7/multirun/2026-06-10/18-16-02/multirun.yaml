@@ -113,13 +113,14 @@ hydra:
     - hydra.mode=MULTIRUN
     task:
     - env.name=LunarLander-v3
+    - seed=0
   job:
-    name: rnd_dqn
+    name: dqn
     chdir: null
-    override_dirname: env.name=LunarLander-v3
-    id: '0'
-    num: 0
-    config_name: rnd_dqn
+    override_dirname: env.name=LunarLander-v3,seed=0
+    id: ???
+    num: ???
+    config_name: dqn
     env_set: {}
     env_copy: []
     config:
@@ -144,7 +145,7 @@ hydra:
     - path: ''
       schema: structured
       provider: schema
-    output_dir: C:\Users\leana\Documents\Uni\6.Semester\Reinforcement Learning\RL-exercises\rl_exercises\week_7\multirun\2026-06-09\14-07-09\0
+    output_dir: ???
     choices:
       hydra/env: default
       hydra/callbacks: null
@@ -156,3 +157,20 @@ hydra:
       hydra/launcher: basic
       hydra/output: default
   verbose: false
+env:
+  name: LunarLander-v3
+seed: 0
+agent:
+  buffer_capacity: 10000
+  batch_size: 32
+  lr: 0.001
+  gamma: 0.99
+  epsilon_start: 1.0
+  epsilon_final: 0.01
+  epsilon_decay: 500
+  target_update_freq: 1000
+  hidden_dim: 64
+  num_hidden_layers: 2
+train:
+  num_frames: 20000
+  eval_interval: 1000

@@ -34,5 +34,5 @@ train:
   total_steps: 20000
 
   # Evaluation settings
-  eval_interval: 10000  # evaluate every N steps
+  eval_interval: 1000  # evaluate every N steps
   eval_episodes: 5      # episodes per evaluation

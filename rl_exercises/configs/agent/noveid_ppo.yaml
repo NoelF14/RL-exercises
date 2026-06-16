@@ -32,6 +32,6 @@ noveld:
   num_iterations_obs_norm_init: 50  # warm-up episodes for obs/reward normalization
 
 train:
-  total_steps: 20000
+  total_steps: 300000
   eval_interval: 10000
   eval_episodes: 5

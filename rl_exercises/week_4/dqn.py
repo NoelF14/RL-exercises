@@ -2,7 +2,10 @@
 Deep Q-Learning implementation.
 """
 
+import csv
+import os
 from typing import Any, Dict, List, Tuple
+from hydra.core.hydra_config import HydraConfig
 
 import gymnasium as gym
 import hydra
@@ -265,7 +268,7 @@ class DQNAgent(AbstractAgent):
         self.total_steps += 1
         return float(loss.item())
 
-    def train(self, num_frames: int, eval_interval: int = 1000) -> None:
+    def train(self, num_frames: int, eval_interval: int = 1000, csv_path: str = "results.csv") -> None:
         """
         Run a training loop for a fixed number of frames.
 
@@ -275,6 +278,8 @@ class DQNAgent(AbstractAgent):
             Total environment steps.
         eval_interval : int
             Every this many episodes, print average reward.
+        csv_path : str
+            Path to the CSV file for logging results.
         """
         state, _ = self.env.reset()
         ep_reward = 0.0
@@ -300,14 +305,18 @@ class DQNAgent(AbstractAgent):
                 state, _ = self.env.reset()
                 recent_rewards.append(ep_reward)
                 ep_reward = 0.0
-                # logging
-                if len(recent_rewards) % 10 == 0:
-                    # TODO: compute avg over last eval_interval episodes and print
-                    # avg = ...
-                    avg = np.mean(recent_rewards[-10:])
-                    print(
-                        f"Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
-                    )
+
+            # logging
+            if frame % eval_interval == 0:
+                avg = np.mean(recent_rewards[-10:]) if recent_rewards else 0.0
+                std = np.std(recent_rewards[-10:]) if recent_rewards else 0.0
+                print(
+                    f"[Train] Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
+                )
+
+                with open(csv_path, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([frame, avg, std])
 
         print("Training complete.")
 
@@ -323,7 +332,7 @@ def main(cfg: DictConfig):
     agent_kwargs = dict(
         buffer_capacity=cfg.agent.buffer_capacity,
         batch_size=cfg.agent.batch_size,
-        lr=cfg.agent.learning_rate,
+        lr=cfg.agent.lr,
         gamma=cfg.agent.gamma,
         epsilon_start=cfg.agent.epsilon_start,
         epsilon_final=cfg.agent.epsilon_final,
@@ -336,7 +345,17 @@ def main(cfg: DictConfig):
     # agent = ...
     # agent.train(...)
     agent = DQNAgent(env, **agent_kwargs)
-    agent.train(cfg.train.num_frames, cfg.train.eval_interval)
+    run_dir = HydraConfig.get().runtime.output_dir
+    csv_dir = os.path.join(run_dir, "dqn")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    csv_path = os.path.join(csv_dir, f"seed_{cfg.seed}.csv")
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "mean_return", "std_return"])
+
+    agent.train(cfg.train.num_frames, cfg.train.eval_interval, csv_path=csv_path)
 
 
 if __name__ == "__main__":

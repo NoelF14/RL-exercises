@@ -2,7 +2,10 @@
 On-policy Proximal Policy Optimization (PPO) with Random Network Distillation (RND) for exploration.
 """
 
+import os
 from typing import Any, List, Tuple
+from hydra.core.hydra_config import HydraConfig
+import csv
 
 import gymnasium as gym
 import hydra
@@ -239,8 +242,8 @@ class RNDPPOAgent(PPOAgent):
             advs_int.insert(0, A)
         advs_int_t = torch.stack(advs_int)
 
-        returns_ext = ...
-        returns_int = ...
+        returns_ext = advs_ext_t + values_ext.squeeze(1)
+        returns_int = advs_int_t + values_int.squeeze(1)
 
         # Combined advantages weighted by coefficients, then normalize
         combined_advs = self.ext_coef * advs_ext_t + self.int_coef * advs_int_t
@@ -322,6 +325,11 @@ class RNDPPOAgent(PPOAgent):
         dataset = torch.utils.data.TensorDataset(
             states, actions, old_logps, combined_advs, returns_ext, returns_int
         )
+        assert len(states) == len(actions)
+        assert len(states) == len(old_logps)
+        assert len(states) == len(combined_advs)
+        assert len(states) == len(returns_ext)
+        assert len(states) == len(returns_int)
         loader = torch.utils.data.DataLoader(
             dataset, batch_size=self.batch_size, shuffle=True
         )
@@ -345,6 +353,9 @@ class RNDPPOAgent(PPOAgent):
                 # RND predictor loss with update_proportion mask
                 # (only a random subset of minibatch transitions updates the predictor)
                 mask = torch.rand(len(b_states)) < self.update_proportion
+                if mask.sum() == 0:
+                    continue
+
                 rnd_loss = F.mse_loss(
                     self.predictor_rnd(b_states[mask]),
                     self.target_rnd(b_states[mask]),
@@ -372,6 +383,7 @@ class RNDPPOAgent(PPOAgent):
         total_steps: int,
         eval_interval: int = 10000,
         eval_episodes: int = 5,
+        csv_path: str = "results.csv",
     ) -> None:
         """
         Run a training loop for a fixed number of environment steps with RND exploration bonus.
@@ -384,6 +396,8 @@ class RNDPPOAgent(PPOAgent):
             Every this many steps, evaluate the agent.
         eval_episodes : int
             Number of evaluation episodes.
+        csv_path : str
+            Path to the CSV file for logging results.
         """
         eval_env = gym.make(self.env.spec.id)
         step_count = 0
@@ -437,6 +451,12 @@ class RNDPPOAgent(PPOAgent):
                     print(
                         f"[Eval ] Step {step_count:6d} AvgReturn {mean_r:5.1f} ± {std_r:4.1f}"
                     )
+
+                    with open(csv_path, "a", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([step_count, mean_r, std_r])
+
+
 
             # PPO + RND update
             policy_loss, value_loss, entropy_loss, rnd_loss = self.update(trajectory)
@@ -505,10 +525,20 @@ def main(cfg: DictConfig) -> None:
         rnd_n_layers=cfg.rnd.n_layers,
         rnd_reward_weight=cfg.rnd.reward_weight,
     )
+    run_dir = HydraConfig.get().runtime.output_dir
+    csv_dir = os.path.join(run_dir, "rnd_ppo")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    csv_path = os.path.join(csv_dir, f"seed_{cfg.seed}.csv")
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "mean_return", "std_return"])
     agent.train(
         cfg.train.total_steps,
         cfg.train.eval_interval,
         cfg.train.eval_episodes,
+        csv_path=csv_path,
     )
 
 

@@ -8,6 +8,7 @@ where novelty(s) = RND prediction error at state s.
 """
 
 from typing import Any, List, Set, Tuple
+from pathlib import Path
 
 import gymnasium as gym
 import hydra
@@ -30,6 +31,7 @@ from torch.distributions import Categorical
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = True
 
+SNAPSHOT_STEPS = {1000, 10000, 50000, 150000, 300000}
 
 class NovelDPPOAgent(PPOAgent):
     """
@@ -159,15 +161,15 @@ class NovelDPPOAgent(PPOAgent):
         for param in self.target_rnd.parameters():
             param.requires_grad = False
 
-        # TODO: Single combined optimizer: policy + dual-head value + RND predictor
+        # Single combined optimizer: policy + dual-head value + RND predictor
         combined_parameters = (
             list(self.policy.parameters())
             + list(self.value_fn.parameters())
             + list(self.predictor_rnd.parameters())
         )
 
-        # TODO: Optimizer for combined_parameters with learning rate combined_lr (Adam)
-        self.optimizer = ...
+        # Optimizer for combined_parameters with learning rate combined_lr (Adam)
+        self.optimizer = optim.Adam(combined_parameters, lr=combined_lr)
 
         # Running statistics for observation and intrinsic reward normalization
         self.obs_rms = RunningMeanStd(shape=(obs_dim,))
@@ -186,11 +188,12 @@ class NovelDPPOAgent(PPOAgent):
     def _rnd_error(self, obs_norm: np.ndarray) -> float:
         """Compute raw RND prediction error for a single normalized observation."""
         t = torch.from_numpy(obs_norm).float().unsqueeze(0)
-        # TODO: Compute RND prediction error (MSE) between predictor and target embeddings
+        # Compute RND prediction error (MSE) between predictor and target embeddings
         with torch.no_grad():
-            target_emb = ...
-            predictor_emb = ...
-        return ...
+            target_emb = self.target_rnd(t)
+            predictor_emb = self.predictor_rnd(t)
+        error = F.mse_loss(predictor_emb, target_emb, reduction="none").mean().item()
+        return error
 
     def _is_first_visit(self, obs: np.ndarray) -> bool:
         """
@@ -227,13 +230,13 @@ class NovelDPPOAgent(PPOAgent):
         float
             NovelD intrinsic reward (0 if not first visit).
         """
-        # TODO: compute NovelD bonus using the formula above
+        # compute NovelD bonus using the formula above
         # Hint: use self._rnd_error() for novelty and self._is_first_visit() for the first-visit indicator
         if not self._is_first_visit(next_state):
             return 0.0
-        novelty_next = ...
-        novelty_curr = ...
-        bonus = ...
+        novelty_next = self._rnd_error(next_state)
+        novelty_curr = self._rnd_error(state)
+        bonus = max(novelty_next - self.noveld_alpha * novelty_curr, 0.0)
         return bonus
 
     def _init_obs_normalization(self) -> None:
@@ -344,19 +347,19 @@ class NovelDPPOAgent(PPOAgent):
         Tuple of: combined advantages, ext advantages, int advantages,
                   extrinsic returns, intrinsic returns.
         """
-        # TODO: compute gae for both extrinsic and intrinsic streams separately
+        # compute gae for both extrinsic and intrinsic streams separately
         # (Hint: extrinsic stream uses done mask; intrinsic stream is non-episodic — no done mask)
         rews_ext = torch.tensor(rewards_ext, dtype=torch.float32)
         rews_int = torch.tensor(rewards_int, dtype=torch.float32)
 
-        deltas_ext = ...
-        deltas_int = ...
+        deltas_ext = rews_ext + self.gamma * next_values_ext.squeeze(1) * (1 - dones) - values_ext.squeeze(1)
+        deltas_int = rews_int + self.int_gamma * next_values_int.squeeze(1) - values_int.squeeze(1)
 
         # GAE for extrinsic stream (episodic: done mask applied)
         advs_ext: List[torch.Tensor] = []
         A = 0.0
         for delta, done in zip(reversed(deltas_ext), reversed(dones)):
-            A = ...
+            A = delta + self.gamma * self.gae_lambda * (1 - done) * A
             advs_ext.insert(0, A)
         advs_ext_t = torch.stack(advs_ext)
 
@@ -364,15 +367,16 @@ class NovelDPPOAgent(PPOAgent):
         advs_int: List[torch.Tensor] = []
         A = 0.0
         for delta in reversed(deltas_int):
-            A = ...
+            A = delta + self.int_gamma * self.gae_lambda * A
             advs_int.insert(0, A)
         advs_int_t = torch.stack(advs_int)
 
-        returns_ext = ...
-        returns_int = ...
+        returns_ext = advs_ext_t + values_ext.squeeze(1)
+        returns_int = advs_int_t + values_int.squeeze(1)
 
-        # TODO: Combined advantages weighted by coefficients, then normalize
-        combined_advs = ...
+        # Combined advantages weighted by coefficients, then normalize
+        combined_advs = self.int_coef * advs_int_t + self.ext_coef * advs_ext_t
+        combined_advs = (combined_advs - combined_advs.mean()) / (combined_advs.std() + 1e-8)
 
         return (
             combined_advs.detach(),
@@ -405,12 +409,12 @@ class NovelDPPOAgent(PPOAgent):
         dones = torch.tensor([t[6] for t in trajectory], dtype=torch.float32)
         next_states = torch.stack([torch.from_numpy(t[7]).float() for t in trajectory])
 
-        # TODO: compute values and next values for both extrinsic and intrinsic streams without grad
+        # compute values and next values for both extrinsic and intrinsic streams without grad
         with torch.no_grad():
-            values_ext, values_int = ...
-            next_values_ext, next_values_int = ...
+            values_ext, values_int = self.value_fn(states)
+            next_values_ext, next_values_int = self.value_fn(next_states)
 
-        # TODO: compute combined advantages and returns for extrinsic and intrinsic rewards
+        # compute combined advantages and returns for extrinsic and intrinsic rewards
         combined_advs, _, _, returns_ext, returns_int = self.compute_gae(
             rewards_ext,
             rewards_int,
@@ -430,24 +434,31 @@ class NovelDPPOAgent(PPOAgent):
 
         for _ in range(self.epochs):
             for b_states, b_actions, b_oldlogp, b_adv, b_ret_ext, b_ret_int in loader:
-                # TODO: --- Policy loss (clipped PPO surrogate) ---
-                probs = ...
-                dist = ...
-                new_logp = ...
-                ratio = ...
-                policy_loss = ...
+                # --- Policy loss (clipped PPO surrogate) ---
+                probs = self.policy(b_states)
+                dist = Categorical(probs)
+                new_logp = dist.log_prob(b_actions)
+                ratio = (new_logp - b_oldlogp).exp()
+                policy_loss = -torch.min(ratio * b_adv, torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * b_adv).mean()
 
-                # TODO: --- Dual-head value loss (MSE for both ext and int heads) ---
-                value_preds_ext, value_preds_int = ...
-                value_loss = ...
+                # --- Dual-head value loss (MSE for both ext and int heads) ---
+                value_preds_ext, value_preds_int = self.value_fn(b_states)
+                value_preds_ext = value_preds_ext.squeeze(-1)
+                value_preds_int = value_preds_int.squeeze(-1)
+                value_loss = F.mse_loss(value_preds_ext, b_ret_ext) + F.mse_loss(value_preds_int, b_ret_int)
 
-                # TODO: --- Entropy loss ---
-                entropy_loss = ...
+                # --- Entropy loss ---
+                entropy_loss = -dist.entropy().mean()
 
-                # TODO: --- RND predictor loss (update_proportion mask) ---
+                # --- RND predictor loss (update_proportion mask) ---
                 # Only a random subset of the minibatch is used to update the predictor
-                mask = ...
-                rnd_loss = ...
+                mask = torch.rand(len(b_states)) < self.update_proportion
+                if mask.sum() == 0:
+                    continue  
+                rnd_loss = F.mse_loss(
+                    self.predictor_rnd(b_states[mask]),
+                    self.target_rnd(b_states[mask]),
+                )
 
                 loss = (
                     policy_loss
@@ -494,6 +505,8 @@ class NovelDPPOAgent(PPOAgent):
         eval_env = gym.make(self.env.spec.id)
         step_count = 0
 
+        snapshot_data: List[Tuple[float, float, float]] = []  # (x, y, int_reward) for heatmap
+
         # Warm-up: initialize obs_rms and reward_rms before policy updates start
         self._init_obs_normalization()
 
@@ -518,7 +531,7 @@ class NovelDPPOAgent(PPOAgent):
                 self.obs_rms.update(next_state[np.newaxis])
                 next_obs_norm = self._normalize_obs(next_state)
 
-                # TODO: --- NovelD intrinsic reward ---
+                # --- NovelD intrinsic reward ---
                 # max(novelty(s_{t+1}) - alpha * novelty(s_t), 0) * first_visit(s_{t+1})
                 int_reward_raw = self.get_noveld_bonus(prev_obs_norm, next_obs_norm)
 
@@ -544,11 +557,23 @@ class NovelDPPOAgent(PPOAgent):
                 prev_obs_norm = next_obs_norm
                 step_count += 1
 
+                snapshot_data.append(
+                    (
+                        next_state[0],   # x
+                        next_state[1],   # y
+                        float(int_reward_raw)     # intrinsic reward
+                    )
+                )
+
                 if step_count % eval_interval == 0:
                     mean_r, std_r = self.evaluate(eval_env, num_episodes=eval_episodes)
                     print(
                         f"[Eval ] Step {step_count:6d} AvgReturn {mean_r:5.1f} ± {std_r:4.1f}"
                     )
+
+                if step_count in SNAPSHOT_STEPS:
+                    heatmap_data = make_heatmap(snapshot_data)
+                    plot_heatmap(heatmap_data, f"Snapshot_{step_count}_v2")
 
             # PPO + RND predictor update
             policy_loss, value_loss, entropy_loss, rnd_loss = self.update(trajectory)
@@ -592,6 +617,41 @@ class NovelDPPOAgent(PPOAgent):
                 total_r += r
             returns.append(total_r)
         return float(np.mean(returns)), float(np.std(returns))
+    
+def make_heatmap(data, bins=25):
+    x = [d[0] for d in data]
+    y = [d[1] for d in data]
+    w = [d[2] for d in data]  # intrinsic reward
+
+    sum_map, xedges, yedges = np.histogram2d(x, y, bins=bins, weights=w)
+    count_map, _, _ = np.histogram2d(x, y, bins=bins)
+
+    heatmap = sum_map / (count_map + 1e-8)
+    return heatmap
+
+import matplotlib.pyplot as plt
+
+def plot_heatmap(heatmap, title):
+    fig, ax = plt.subplots()
+
+    im = ax.imshow(
+        heatmap.T,
+        origin="lower",
+        aspect="auto"
+    )
+    ax.set_title(title)
+    ax.set_xlabel("x position")
+    ax.set_ylabel("y position")
+    fig.colorbar(im, ax=ax, label="intrinsic reward")
+
+    BASE_DIR = Path(__file__).resolve().parent
+    plot_dir = Path(BASE_DIR / "plots")
+    plot_dir.mkdir(exist_ok=True)
+
+    fig.savefig(plot_dir / f"{title}.png",
+        dpi=300, bbox_inches="tight")
+
+    plt.close(fig)
 
 
 @hydra.main(
