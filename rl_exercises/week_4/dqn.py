@@ -2,7 +2,10 @@
 Deep Q-Learning implementation.
 """
 
-from typing import Any, Dict, List, Tuple, Literal
+import csv
+import os
+from typing import Any, Dict, List, Tuple
+from hydra.core.hydra_config import HydraConfig
 
 import gymnasium as gym
 import hydra
@@ -58,12 +61,7 @@ class DQNAgent(AbstractAgent):
         epsilon_final: float = 0.01,
         epsilon_decay: int = 500,
         target_update_freq: int = 1000,
-        num_hidden_layers: int = 2,
         seed: int = 0,
-        hidden_dim: int = 64,
-
-        buffer_type: Literal["default", "prioritized"] = "default",
-        dqn_type: Literal["default", "double_dqn"] = "default"
     ) -> None:
         """
         Initialize replay buffer, Q‐networks, optimizer, and hyperparameters.
@@ -90,23 +88,7 @@ class DQNAgent(AbstractAgent):
             How many updates between target‐network syncs.
         seed : int
             RNG seed.
-        
-        buffer_type: Literal["default", "prioritized"], optional
-            default or prioritized, "default" by default
-        dqn_type: Literal["default", "double_dqn"] optional
-            default or double_dqn, "default" by default
         """
-
-        assert buffer_type in [
-            "default",
-            "prioritized",
-        ], "buffer_type must be 'default' or 'prioritized'"
-
-        assert dqn_type in [
-            "default",
-            "double_dqn",
-        ], "dqn_type must be 'default' or 'prioritized'"
-
         super().__init__(
             env,
             buffer_capacity,
@@ -123,26 +105,16 @@ class DQNAgent(AbstractAgent):
         set_seed(env, seed)
 
         obs_dim = env.observation_space.shape[0]
+       
         n_actions = env.action_space.n
 
         # main Q‐network and frozen target
         self.q = QNetwork(obs_dim, n_actions)
-        self.q = QNetwork(
-            obs_dim,
-            n_actions,
-            hidden_dim=hidden_dim,
-            num_hidden_layers=num_hidden_layers,
-        )
-
-        self.target_q = QNetwork(
-            obs_dim,
-            n_actions,
-            hidden_dim=hidden_dim,
-            num_hidden_layers=num_hidden_layers,
-        )
+        self.target_q = QNetwork(obs_dim, n_actions)
+        self.target_q.load_state_dict(self.q.state_dict())
 
         self.optimizer = optim.Adam(self.q.parameters(), lr=lr)
-        self.buffer = ReplayBuffer(buffer_capacity, buffer_type = buffer_type)
+        self.buffer = ReplayBuffer(buffer_capacity)
 
         # hyperparams
         self.batch_size = batch_size
@@ -153,9 +125,6 @@ class DQNAgent(AbstractAgent):
         self.target_update_freq = target_update_freq
 
         self.total_steps = 0  # for ε decay and target sync
-
-        self.buffer_type = buffer_type
-        self.dqn_type = dqn_type
 
     def epsilon(self) -> float:
         """
@@ -169,8 +138,9 @@ class DQNAgent(AbstractAgent):
         # TODO: implement exponential‐decayin
         # ε = ε_final + (ε_start - ε_final) * exp(-total_steps / ε_decay)
         # Currently, it is constant and returns the starting value ε
+        # return self.epsilon_start
         return self.epsilon_final + (self.epsilon_start - self.epsilon_final) * np.exp(
-            -self.total_steps / self.epsilon_decay
+            -1.0 * self.total_steps / self.epsilon_decay
         )
 
     def predict_action(
@@ -199,19 +169,23 @@ class DQNAgent(AbstractAgent):
             # purely greedy
             t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
             with torch.no_grad():
+                # qvals = ...
                 qvals = self.q(t)
-            action = int(qvals.argmax(dim=1).item())
+            # action = None
+            action = int(torch.argmax(qvals, dim=1).item())
         else:
             # ε-greedy
             if np.random.rand() < self.epsilon():
                 # TODO: sample random action
+                # action = None
                 action = self.env.action_space.sample()
             else:
                 # TODO: select purely greedy action from Q(s)
                 t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                 with torch.no_grad():
                     qvals = self.q(t)
-                action = int(qvals.argmax(dim=1).item())
+                # action = None
+                action = int(torch.argmax(qvals, dim=1).item())
 
         return action
 
@@ -246,10 +220,7 @@ class DQNAgent(AbstractAgent):
         self.optimizer.load_state_dict(checkpoint["optimizer"])
 
     def update_agent(
-        self, 
-        training_batch: List[Tuple[Any, Any, float, Any, bool, Dict]],
-        idxs: np.ndarray | None = None,
-        weights: np.ndarray | None = None
+        self, training_batch: List[Tuple[Any, Any, float, Any, bool, Dict]]
     ) -> float:
         """
         Perform one gradient update on a batch of transitions.
@@ -258,10 +229,6 @@ class DQNAgent(AbstractAgent):
         ----------
         training_batch : list of transitions
             Each is (state, action, reward, next_state, done, info).
-        idxs: np.ndarray | None, optional
-            Only relevant for prioritized buffer, None by default
-        weights: np.ndarray | None, optional
-            Only relevant for prioritized buffer, None by default
 
         Returns
         -------
@@ -275,39 +242,24 @@ class DQNAgent(AbstractAgent):
         r = torch.tensor(np.array(rewards), dtype=torch.float32)
         s_next = torch.tensor(np.array(next_states), dtype=torch.float32)
         mask = torch.tensor(np.array(dones), dtype=torch.float32)
-        if self.buffer_type == "prioritized":
-            w = torch.tensor(weights, dtype=torch.float32)
 
         # current Q estimates for taken actions
         # TODO: pass batched states through self.q and gather Q(s,a)
+        # pred = ...
         pred = self.q(s).gather(1, a).squeeze(1)
 
         # TODO: compute TD target with frozen network
         with torch.no_grad():
-            if self.dqn_type == "double_dqn":
-                next_actions = self.q(s_next).argmax(dim=1, keepdim=True)
-                next_q = self.target_q(s_next).gather(1, next_actions).squeeze(1)
+            # target = ...
+            next_q = self.target_q(s_next).max(1)[0]
+            target = r + self.gamma * next_q * (1 - mask)
 
-                target = r + (1 - mask) * self.gamma * next_q
-            else:
-                next_q = self.target_q(s_next).max(dim=1).values
-
-                target = r + (1 - mask) * self.gamma * next_q
-        
-        td_errors = target - pred
-
-        if self.buffer_type == "prioritized":
-            loss = (w * (td_errors ** 2)).mean()
-        else: 
-            loss = (td_errors ** 2).mean()
+        loss = nn.MSELoss()(pred, target)
 
         # gradient step
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        if self.buffer_type == "prioritized":
-            self.buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
 
         # occasionally sync target network
         if self.total_steps % self.target_update_freq == 0:
@@ -316,7 +268,7 @@ class DQNAgent(AbstractAgent):
         self.total_steps += 1
         return float(loss.item())
 
-    def train(self, num_frames: int, eval_interval: int = 1000) -> None:
+    def train(self, num_frames: int, eval_interval: int = 1000, csv_path: str = "results.csv") -> None:
         """
         Run a training loop for a fixed number of frames.
 
@@ -326,6 +278,8 @@ class DQNAgent(AbstractAgent):
             Total environment steps.
         eval_interval : int
             Every this many episodes, print average reward.
+        csv_path : str
+            Path to the CSV file for logging results.
         """
         state, _ = self.env.reset()
         ep_reward = 0.0
@@ -343,62 +297,28 @@ class DQNAgent(AbstractAgent):
             # update if ready
             if len(self.buffer) >= self.batch_size:
                 # TODO: sample batch from replay buffer
-                batch, idxs, weights = self.buffer.sample(batch_size=self.batch_size)
-                self.update_agent(batch, idxs, weights)
+                # batch = ...
+                batch = self.buffer.sample(self.batch_size)
+                _ = self.update_agent(batch)
 
             if done or truncated:
                 state, _ = self.env.reset()
                 recent_rewards.append(ep_reward)
                 ep_reward = 0.0
-                # logging
-                if len(recent_rewards) % 10 == 0:
-                    # TODO: compute avg over last eval_interval episodes and print
-                    avg = np.mean(recent_rewards[-eval_interval:])
-                    print(
-                        f"Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
-                    )
+
+            # logging
+            if frame % eval_interval == 0:
+                avg = np.mean(recent_rewards[-10:]) if recent_rewards else 0.0
+                std = np.std(recent_rewards[-10:]) if recent_rewards else 0.0
+                print(
+                    f"[Train] Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
+                )
+
+                with open(csv_path, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([frame, avg, std])
 
         print("Training complete.")
-
-    def train_and_collect_rewards(
-        self, num_frames: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Train and return episode-end frames and rolling episode rewards.
-        """
-        state, _ = self.env.reset()
-        ep_reward = 0.0
-        ep_num = 0
-
-        episode_rewards: List[float] = []
-        episode_frames: List[int] = []
-        rolling_rewards: List[float] = []
-
-        for frame in range(1, num_frames + 1):
-            action = self.predict_action(state)
-            next_state, reward, done, truncated, _ = self.env.step(action)
-
-            self.buffer.add(state, action, reward, next_state, done or truncated, {})
-            state = next_state
-            ep_reward += reward
-
-            if len(self.buffer) >= self.batch_size:
-                batch, idxs, weights = self.buffer.sample(batch_size=self.batch_size)
-                self.update_agent(batch, idxs, weights)
-
-            if done or truncated:
-                state, _ = self.env.reset()
-
-                episode_rewards.append(ep_reward)
-                episode_frames.append(frame)
-                rolling_rewards.append(np.mean(episode_rewards[-10:]))
-
-                #print(f"Episode {ep_num} ended at frame {frame}, reward {ep_reward:.1f}")
-
-                ep_reward = 0.0
-                ep_num += 1
-
-        return np.array(episode_frames), np.array(rolling_rewards)
 
 
 @hydra.main(config_path="../configs/agent/", config_name="dqn", version_base="1.1")
@@ -408,15 +328,34 @@ def main(cfg: DictConfig):
     set_seed(env, cfg.seed)
 
     # 2) TODO: map config → agent kwargs
+    # agent_kwargs = dict(...)
     agent_kwargs = dict(
-        env=env,
-        **cfg.agent,
+        buffer_capacity=cfg.agent.buffer_capacity,
+        batch_size=cfg.agent.batch_size,
+        lr=cfg.agent.lr,
+        gamma=cfg.agent.gamma,
+        epsilon_start=cfg.agent.epsilon_start,
+        epsilon_final=cfg.agent.epsilon_final,
+        epsilon_decay=cfg.agent.epsilon_decay,
+        target_update_freq=cfg.agent.target_update_freq,
         seed=cfg.seed,
     )
 
     # 3) TODO:instantiate & train
-    agent = DQNAgent(**agent_kwargs)
-    agent.train(cfg.train.num_frames, cfg.train.eval_interval)
+    # agent = ...
+    # agent.train(...)
+    agent = DQNAgent(env, **agent_kwargs)
+    run_dir = HydraConfig.get().runtime.output_dir
+    csv_dir = os.path.join(run_dir, "dqn")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    csv_path = os.path.join(csv_dir, f"seed_{cfg.seed}.csv")
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "mean_return", "std_return"])
+
+    agent.train(cfg.train.num_frames, cfg.train.eval_interval, csv_path=csv_path)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+Results: plots/Snapshot_STEPS_v2.png
+The plots show heatmaps of the intrinsic reward for the x and y values of the states visited in 
+the first STEPS steps of the training (STEPS = 1000, 10000, 50000, 150000, 300000).
+
+The heatmaps show that the regions with the highest intrinsic rewards remain mostly the same 
+throughout training. As training progresses, the absolute value of the intrinsic rewards 
+decreases and the rewards become less concentrated in a single spot, spreading more evenly 
+across the surrounding area.
+
+This shows that the novelty of frequently visited states is reduced while exploration 
+expands to nearby states.

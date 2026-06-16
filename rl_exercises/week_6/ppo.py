@@ -4,11 +4,14 @@ On-policy Proximal Policy Optimization (PPO) with GAE, clipped surrogate objecti
 value-loss coefficient, and entropy bonus, trained for a total number of environment steps.
 """
 
+import csv
 from typing import Any, List, Tuple
+from hydra.core.hydra_config import HydraConfig
 
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
@@ -101,7 +104,27 @@ class PPOAgent(AbstractAgent):
         dones: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # TODO: compute advantages using GAE (Hint: replicate the GAE formula from actor critic)
-        return None  # template placeholder
+        # return None  # template placeholder
+
+        deltas = (
+            torch.tensor(rewards, dtype=torch.float32)
+            + self.gamma * next_values * (1 - dones)
+            - values
+        )
+        advantages: List[torch.Tensor] = []
+        A = 0.0
+        for delta, done in zip(reversed(deltas), reversed(dones)):
+            A = delta + self.gamma * self.gae_lambda * A * (1 - done)
+            advantages.insert(0, A)
+        advs = torch.stack(advantages)
+        returns = advs + values
+
+        # normalize
+        advs = (advs - advs.mean()) / (advs.std(unbiased=False) + 1e-8)
+
+        # **detach both** so that later `loss.backward()` never
+        # tries to re-enter this graph
+        return advs.detach(), returns.detach()
 
     def update(self, trajectory: List[Any]) -> None:
         # unpack trajectory
@@ -113,12 +136,19 @@ class PPOAgent(AbstractAgent):
         dones = torch.tensor([t[5] for t in trajectory], dtype=torch.float32)
 
         # TODO: compute values and next_values without gradients
-        values = ...  # noqa: F841  # template placeholder
-        next_values = ...  # noqa: F841  # template placeholder
+        # values = ...  # noqa: F841  # template placeholder
+        # next_values = ...  # noqa: F841  # template placeholder
+
+        with torch.no_grad():
+            values = self.value_fn(states)
+            next_states = torch.stack(
+                [torch.from_numpy(t[6]).float() for t in trajectory]
+            )
+            next_values = self.value_fn(next_states)
 
         # TODO: compute advantages and returns
-        advantages = ...  # template placeholder
-        returns = ...  # template placeholder
+        # advantages = ...  # template placeholder
+        # returns = ...  # template placeholder
 
         advantages, returns = self.compute_gae(rewards, values, next_values, dones)
 
@@ -134,18 +164,31 @@ class PPOAgent(AbstractAgent):
                 # TODO: compute policy loss, value loss, and entropy loss
 
                 # TODO: compute new log probabilities by sampling actions from the policy distribution
-                new_logp = ...  # noqa: F841  # template placeholder
+                # new_logp = ...  # noqa: F841  # template placeholder
 
                 # TODO: compute the ratio of new log probabilities to old log probabilities
 
                 # TODO: compute the clipped surrogate loss using the clipped objective
-                policy_loss = ...  # template placeholder
+                # policy_loss = ...  # template placeholder
 
                 # TODO: compute value loss using mean squared error
-                value_loss = ...  # template placeholder
+                # value_loss = ...  # template placeholder
 
                 # TODO: compute entropy loss using the distribution's entropy
-                entropy_loss = ...  # template placeholder
+                # entropy_loss = ...  # template placeholder
+
+                probs = self.policy(b_states)
+                dist = Categorical(probs)
+                new_logp = dist.log_prob(b_actions)
+                ratio = torch.exp(new_logp - b_oldlogp)
+                surr1 = ratio * b_adv
+                surr2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * b_adv
+                policy_loss = -torch.min(surr1, surr2).mean()
+
+                value_preds = self.value_fn(b_states).squeeze(-1)
+                value_loss = F.mse_loss(value_preds, b_ret)
+
+                entropy_loss = -dist.entropy().mean()
 
                 loss = (
                     policy_loss
@@ -163,6 +206,7 @@ class PPOAgent(AbstractAgent):
         total_steps: int,
         eval_interval: int = 10000,
         eval_episodes: int = 5,
+        csv_path: str = "results.csv"
     ) -> None:
         eval_env = gym.make(self.env.spec.id)
         step_count = 0
@@ -186,6 +230,10 @@ class PPOAgent(AbstractAgent):
                     print(
                         f"[Eval ] Step {step_count:6d} AvgReturn {mean_r:5.1f} ± {std_r:4.1f}"
                     )
+
+                    with open(csv_path, "a", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([step_count, mean_r, std_r])
 
             # PPO update
             policy_loss, value_loss, entropy_loss = self.update(trajectory)
@@ -231,10 +279,22 @@ def main(cfg: DictConfig) -> None:
         seed=cfg.seed,
         hidden_size=cfg.agent.hidden_size,
     )
+
+    run_dir = HydraConfig.get().runtime.output_dir
+    csv_dir = os.path.join(run_dir, "ppo")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    csv_path = os.path.join(csv_dir, f"seed_{cfg.seed}.csv")
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "mean_return", "std_return"])
+
     agent.train(
         cfg.train.total_steps,
         cfg.train.eval_interval,
         cfg.train.eval_episodes,
+        csv_path=csv_path
     )
 
 

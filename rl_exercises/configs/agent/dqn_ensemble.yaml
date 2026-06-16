@@ -1,0 +1,25 @@
+# @package _global_
+env:
+  name: LunarLander-v3
+  
+seed: 0
+
+agent:
+  buffer_capacity:    10000    # max replay buffer size
+  batch_size:         32       # minibatch size
+  lr:                 0.001    # maps to DQNAgent’s lr
+  gamma:              0.99
+  target_update_freq: 1000
+  heads:      5        # number of Heads in the ensemble
+  hidden_dim:         64
+  num_hidden_layers:  2
+  N: 50 # Number of quantiles for distributional RL
+  K: 3 # Number of actors
+  phi: 1.0
+  alpha: 1.0
+  lmbda: 0.5
+  
+
+train:
+  num_frames:     200000   # total env steps
+  eval_interval:  1000    # print avg reward every this many episodes

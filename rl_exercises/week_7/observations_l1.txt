@@ -1,0 +1,5 @@
+Results (plots/LunarLander-v3_training-curves)
+For both DQN and PPO the RND version performs better. The improvement is greater for DQN.
+PPO starts off with a better exploration method than DQN.
+PPO does exploration through the entropy bonus and the stochastic policy, while DQN only sometimes
+takes a random action instead of following the policy. This leaves less room for improvement for PPO.

@@ -13,6 +13,6 @@ agent:
   baseline_decay: 0.9     # only used for 'avg'
 
 train:
-  total_steps: 200000
-  eval_interval: 10000
+  total_steps: 50000
+  eval_interval: 2500
   eval_episodes: 5

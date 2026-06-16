@@ -9,7 +9,6 @@ from typing import Any, List, Tuple
 import gymnasium as gym
 import hydra
 import numpy as np
-from numpy.random import gamma
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -20,10 +19,6 @@ from rl_exercises.week_6.networks import (  # adjust import path as needed
     ValueNetwork,
 )
 from torch.distributions import Categorical
-
-import os
-import csv
-from pathlib import Path
 
 
 def set_seed(env: gym.Env, seed: int = 0) -> None:
@@ -50,7 +45,6 @@ class ActorCriticAgent(AbstractAgent):
         baseline_decay: float = 0.9,
     ) -> None:
         set_seed(env, seed)
-        self.seed = seed
         self.env = env
         self.gamma = gamma
         self.gae_lambda = gae_lambda
@@ -92,28 +86,24 @@ class ActorCriticAgent(AbstractAgent):
     def compute_advantages(
         self, states: List[np.ndarray], rewards: List[float]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        # convert rewards into discounted returns
-        returns = []
-        discounted_return = 0.0
+        # TODO: convert rewards into discounted returns
 
-        for reward in reversed(rewards):
-            discounted_return = reward + self.gamma * discounted_return
-            returns.insert(0, discounted_return)
+        # TODO: convert states list into a torch batch and compute state-values
 
-        returns = torch.tensor(returns, dtype=torch.float32)
+        # TODO: compute raw advantages = returns - values
 
-        # convert states list into a torch batch and compute state-values
-        state_batch = torch.tensor(np.array(states), dtype=torch.float32)
-
-        values = self.value_fn(state_batch).squeeze(-1)
-
-        # compute raw advantages = returns - values
-        advantages = returns - values.detach()
-
-        # normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
-        advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+        # TODO: normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
 
         # return normalized advantages and returns
+        # return None  # template placeholder
+
+        returns = self.compute_returns(rewards)
+        states_t = torch.stack([torch.from_numpy(s).float() for s in states])
+        values = self.value_fn(states_t)
+        advantages = returns - values.detach()
+        advantages = (advantages - advantages.mean()) / (
+            advantages.std(unbiased=False) + 1e-8
+        )
         return advantages, returns
 
     def compute_gae(
@@ -123,34 +113,42 @@ class ActorCriticAgent(AbstractAgent):
         next_states: List[np.ndarray],
         dones: List[bool],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        
-        # compute values and next_values using your value_fn
-        states = torch.tensor(np.array(states), dtype=torch.float32)
-        next_states = torch.tensor(np.array(next_states), dtype=torch.float32)
-        dones = torch.tensor(dones, dtype=torch.float32)
-        values = self.value_fn(states).squeeze(-1)
-        next_values = self.value_fn(next_states).squeeze(-1)
-        next_values = next_values * (1 - dones)
+        # TODO: compute values and next_values using your value_fn
 
-        # compute deltas: one-step TD errors
-        rewards = torch.tensor(rewards, dtype=torch.float32)
-        deltas = rewards + self.gamma * next_values - values
+        # TODO: compute deltas: one-step TD errors
 
-        # accumulate GAE advantages backwards
-        advantages = torch.zeros_like(rewards)
-        gae = 0.0
+        # TODO: accumulate GAE advantages backwards
 
-        for t in reversed(range(len(rewards))):
-            gae = deltas[t] + self.gamma * self.gae_lambda * (1 - dones[t]) * gae
-            advantages[t] = gae
+        # TODO: compute returns using advantages and values
 
-        # compute returns using advantages and values
-        returns = advantages + values
+        # TODO: normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
 
-        # normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
-        advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+        # TODO: advantages, returns  # replace with actual values (detach both to avoid re-entering the graph)
 
-        # Tadvantages, returns  # replace with actual values (detach both to avoid re-entering the graph)
+        # return None  # template placeholder
+
+        # convert to tensors
+        states_t = torch.stack([torch.from_numpy(s).float() for s in states])
+        next_t = torch.stack([torch.from_numpy(s).float() for s in next_states])
+        rewards_t = torch.tensor(rewards, dtype=torch.float32)
+        dones_t = torch.tensor(dones, dtype=torch.float32)
+        # values
+        values = self.value_fn(states_t)
+        next_values = self.value_fn(next_t)
+        # deltas
+        deltas = rewards_t + self.gamma * next_values * (1 - dones_t) - values
+        # GAE advantage
+        advs: List[torch.Tensor] = []
+        A = 0.0
+        for delta, done in zip(reversed(deltas), reversed(dones_t)):
+            A = delta + self.gamma * self.gae_lambda * A * (1 - done)
+            advs.insert(0, A)
+        advantages = torch.stack(advs)
+        returns = advantages + values.detach()
+        # normalize
+        advantages = (advantages - advantages.mean()) / (
+            advantages.std(unbiased=False) + 1e-8
+        )
         return advantages.detach(), returns.detach()
 
     def update_agent(
@@ -169,18 +167,20 @@ class ActorCriticAgent(AbstractAgent):
         elif self.baseline_type == "avg":
             ret = self.compute_returns(list(rewards))
 
-            # compute advantages by subtracting running return
-            adv = ret - self.running_return
+            # TODO: compute advantages by subtracting running return
+            # adv = ...  # template placeholder
 
-            # normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
+            # TODO: normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
             # (Reminder, use unbiased=False for torch tensors)
-            adv = (adv - adv.mean()) / (adv.std(unbiased=False) + 1e-8)
 
-            # update running return using baseline decay
+            # TODO: update running return using baseline decay
             # (x = baseline_decay * x + (1 - baseline_decay) * mean return)
+
+            adv = ret - self.running_return
+            adv = (adv - adv.mean()) / (adv.std(unbiased=False) + 1e-8)
             self.running_return = (
                 self.baseline_decay * self.running_return
-                + (1 - self.baseline_decay) * ret.mean()
+                + (1 - self.baseline_decay) * ret.mean().item()
             )
         else:
             ret = self.compute_returns(list(rewards))
@@ -237,26 +237,6 @@ class ActorCriticAgent(AbstractAgent):
         eval_episodes: int = 5,
     ) -> None:
         eval_env = gym.make(self.env.spec.id)
-
-        log_dir = Path(f"./logs/{self.env.spec.id}/{self.baseline_type}")
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"seed_{self.seed}.csv"
-
-        file_exists = log_file.exists()
-
-        csv_file = open(log_file, mode="a", newline="")
-        writer = csv.writer(csv_file)
-
-        if not file_exists:
-            writer.writerow([
-                "step",
-                "return",
-                "policy_loss",
-                "value_loss",
-                "eval_return_mean",
-                "eval_return_std"
-            ])
-
         step_count = 0
 
         while step_count < total_steps:
@@ -280,23 +260,12 @@ class ActorCriticAgent(AbstractAgent):
                         f"[Eval ] Step {step_count:6d} AvgReturn {mean_r:5.1f} ± {std_r:4.1f}"
                     )
 
-                    writer.writerow([
-                        step_count,
-                        None,
-                        None,
-                        None,
-                        mean_r,
-                        std_r
-                    ])
-                    csv_file.flush()
-
             policy_loss, value_loss = self.update_agent(trajectory)
             total_return = sum(r for _, _, r, *_ in trajectory)
             print(
                 f"[Train] Step {step_count:6d} Return {total_return:5.1f} Policy Loss {policy_loss:.3f} Value Loss {value_loss:.3f}"
             )
 
-        csv_file.close()
         print("Training complete.")
 
 
