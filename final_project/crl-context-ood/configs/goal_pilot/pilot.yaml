@@ -1,0 +1,48 @@
+# Immutable, predeclared target-angle context-necessity pilot.
+experiment:
+  name: goal_pilot
+  results_dir: results/goal_pilot
+  seeds: [0, 1]
+  modes: [hidden, oracle]
+
+environment:
+  context_feature: target_angle
+  oracle_normalization: train_range
+  splits:
+    train: [-0.6, -0.3, 0.0, 0.3, 0.6]
+    id_test: [-0.45, -0.15, 0.15, 0.45]
+    ood_left: [-1.0, -0.8]
+    ood_right: [0.8, 1.0]
+
+# Identical to configs/phase0.yaml except for the required 300k budget.
+training:
+  total_timesteps: 300000
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  device: auto
+
+evaluation:
+  episodes_per_context: 5
+  deterministic: true
+  seed_offset: 10000
+
+reproducibility:
+  deterministic_torch: true
+
+gate:
+  epsilon: 1.0e-8
+  # An own-goal mean return of at least -300 is the pre-run learnability bar.
+  specialist_learnable_return: -300.0
+  # Within each seed, the three specialists must have at least two distinct
+  # best train/ID goals; one common optimum for all three fails the gate.
+  specialist_min_distinct_best_goals: 2
+  # "Large" must be numerical and predeclared. A 25% relative loss is the
+  # rejection boundary for the fixed-center oracle sanity check.
+  fixed_center_max_relative_degradation: 0.25
+  primary_splits: [train, id_test]
+  ood_role: descriptive_only
+  confidence_intervals: false

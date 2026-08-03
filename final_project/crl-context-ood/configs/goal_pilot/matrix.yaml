@@ -1,0 +1,19 @@
+pilot_config: pilot.yaml
+phase0_reference: ../phase0.yaml
+
+# The center specialist is also the fixed-center hidden baseline. The alias is
+# explicit here and is never expanded into a duplicate training run.
+jobs:
+  contextual:
+    modes: [hidden, oracle]
+    seeds: [0, 1]
+    training_goals: all_train
+  specialists:
+    modes: [hidden]
+    seeds: [0, 1]
+    training_goals: [-0.6, 0.0, 0.6]
+  fixed_center:
+    modes: [hidden, oracle]
+    seeds: [0, 1]
+    training_goals: [0.0]
+    hidden_reuses: specialist_center

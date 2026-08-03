@@ -29,6 +29,8 @@ crl-ood-diagnostic-analyze = "crl_ood.analysis.analyze_diagnostic:main"
 crl-ood-oracle-audit = "crl_ood.audit.evaluate:main"
 crl-ood-fixed-center-oracle = "crl_ood.audit.run_fixed_center:main"
 crl-ood-oracle-audit-analyze = "crl_ood.analysis.analyze_oracle_audit:main"
+crl-ood-goal-pilot = "crl_ood.goal_pilot.run:main"
+crl-ood-goal-pilot-analyze = "crl_ood.analysis.analyze_goal_pilot:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
