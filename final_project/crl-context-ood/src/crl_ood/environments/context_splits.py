@@ -31,6 +31,19 @@ def build_context_splits(
     rng = np.random.default_rng(seed)
     splits: dict[str, dict[int, dict[str, float]]] = {}
 
+    explicit = all("values" in spec for spec in split_config.values())
+    if explicit:
+        for split_name, spec in split_config.items():
+            values = np.asarray(spec["values"], dtype=np.float64)
+            if values.ndim != 1 or len(values) < 1 or np.any(values <= 0):
+                raise ValueError(f"{split_name}.values must be a non-empty positive list")
+            values = values[rng.permutation(len(values))]
+            splits[split_name] = {
+                context_id: {key: float(value)}
+                for context_id, value in enumerate(values)
+            }
+        return splits
+
     for split_name in SPLIT_NAMES:
         if split_name not in split_config:
             raise ValueError(f"Missing environment split configuration: {split_name}")

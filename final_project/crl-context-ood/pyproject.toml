@@ -12,6 +12,8 @@ dependencies = [
   "carl-bench==1.1.1",
   "stable-baselines3==2.7.0",
   "PyYAML>=6.0",
+  "pandas>=2.0",
+  "matplotlib>=3.7",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +23,9 @@ test = ["pytest>=8.0"]
 crl-ood-train = "crl_ood.training.train_ppo:main"
 crl-ood-evaluate = "crl_ood.evaluation.evaluate:main"
 crl-ood-phase0 = "crl_ood.training.train_ppo:phase0_main"
+crl-ood-analyze = "crl_ood.analysis.analyze_phase0:main"
+crl-ood-diagnostic = "crl_ood.diagnostic.run:main"
+crl-ood-diagnostic-analyze = "crl_ood.analysis.analyze_diagnostic:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

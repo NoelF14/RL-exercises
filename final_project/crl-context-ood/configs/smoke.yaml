@@ -15,7 +15,7 @@ environment:
     ood_high: {low_multiplier: 1.3, high_multiplier: 1.5, count: 2}
 
 training:
-  total_timesteps: 128
+  total_timesteps: 256
   learning_rate: 0.0003
   n_steps: 64
   batch_size: 64

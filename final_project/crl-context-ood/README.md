@@ -46,6 +46,10 @@ After selecting a feature, run the five-seed comparison (shown for gravity):
   --features gravity --seeds 0 1 2 3 4
 ```
 
+Atomic run directories are protected. Training refuses to start when its target
+already contains artifacts. To explicitly discard and recreate matching atomic
+runs, pass `--overwrite` to `crl-ood-train` or `crl-ood-phase0`.
+
 Train one atomic run or reevaluate an existing checkpoint with:
 
 ```bash
@@ -56,6 +60,14 @@ Train one atomic run or reevaluate an existing checkpoint with:
   --model results/phase0/gravity/hidden/seed_0/model.zip \
   --feature gravity --mode hidden --seed 0 \
   --output-dir results/phase0/gravity/hidden/seed_0
+```
+
+After a screening matrix completes, aggregate existing result CSVs without
+loading CARL or rerunning environments:
+
+```bash
+.venv/bin/crl-ood-analyze --results-root results/phase0 \
+  --output-dir results/phase0/analysis
 ```
 
 ## Design
@@ -81,6 +93,8 @@ Every atomic run writes the following under
 - `contexts.yaml` with the fully expanded CARL contexts passed to the environment;
 - `contexts.csv` and `evaluation_plan.csv` with ordered context values and seeds;
 - `model.zip`, the SB3 PPO checkpoint;
+- `sb3_monitor.csv` and `sb3_logs/progress.csv`, SB3's native training logs;
+- `training_metrics.csv`, tidy per-episode training returns and lengths;
 - `episode_returns.csv`, one tidy row per evaluated episode, including run,
   method, context, seed, length, return, and termination type;
 - `context_returns.csv`, one aggregate row per split and context.
@@ -88,3 +102,54 @@ Every atomic run writes the following under
 Standalone evaluation loads `contexts.yaml` and `evaluation_plan.csv` from the
 checkpoint directory by default. This prevents later configuration edits from
 silently changing the evaluation set.
+
+The result-only analyzer writes seed-level screening summaries, paired
+oracle-minus-hidden gaps, context-level pairs, and four plot files. It does not
+compute confidence intervals over the two screening seeds.
+
+## Separate Phase 0 task-validity diagnostic
+
+The task-validity diagnostic has its own configuration and result namespaces:
+`configs/diagnostic/` and `results/phase0_diagnostic/`. It contains 14 atomic
+jobs: fixed-default length at 100k and 300k steps, three 300k single-length
+specialists, and a 300k contextual hidden/oracle comparison using the original
+length splits. The runner validates that all PPO settings other than the step
+budget match `configs/phase0.yaml`, executes sequentially, and never writes to
+`results/phase0`.
+
+Print the complete matrix without importing the training stack or starting a
+job:
+
+```bash
+.venv/bin/python scripts/run_phase0_diagnostic.py \
+  --matrix-config configs/diagnostic/matrix.yaml --dry-run
+```
+
+Run one atomic job (existing output is refused by default):
+
+```bash
+.venv/bin/python scripts/run_phase0_diagnostic.py \
+  --matrix-config configs/diagnostic/matrix.yaml \
+  --job-id default_100k__length__hidden__seed_0
+```
+
+Run or resume the full matrix with validated completed jobs skipped and
+ambiguous partial directories refused:
+
+```bash
+.venv/bin/python scripts/run_phase0_diagnostic.py \
+  --matrix-config configs/diagnostic/matrix.yaml --resume
+```
+
+After all 14 jobs are complete, analyze saved result/config artifacts only:
+
+```bash
+.venv/bin/python -m crl_ood.analysis.analyze_diagnostic \
+  --results-root results/phase0_diagnostic \
+  --output-dir results/phase0_diagnostic/analysis
+```
+
+The diagnostic analyzer first averages episodes and contexts within each seed;
+seeds are the independent replicates. With two seeds it reports seed means and
+descriptive spread but no confidence intervals. OOD-low and OOD-high are marked
+as descriptive-only and are never used for tuning or selection.

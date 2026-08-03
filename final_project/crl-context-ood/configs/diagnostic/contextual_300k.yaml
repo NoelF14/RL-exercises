@@ -1,0 +1,25 @@
+experiment:
+  name: contextual_300k
+  results_dir: results/phase0_diagnostic
+  seeds: [0, 1]
+  modes: [hidden, oracle]
+  context_features: [length]
+environment:
+  split_seed: 17
+  oracle_normalization: train_range
+  splits:
+    train: {low_multiplier: 0.8, high_multiplier: 1.2, count: 9}
+    id_test: {low_multiplier: 0.825, high_multiplier: 1.175, count: 8}
+    ood_low: {low_multiplier: 0.5, high_multiplier: 0.7, count: 5}
+    ood_high: {low_multiplier: 1.3, high_multiplier: 1.5, count: 5}
+training:
+  total_timesteps: 300000
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  device: auto
+evaluation: {episodes_per_context: 5, deterministic: true, seed_offset: 10000}
+reproducibility: {deterministic_torch: true}

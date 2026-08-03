@@ -37,3 +37,10 @@ def test_train_and_ood_ranges_are_disjoint(smoke_config, feature):
     assert low.isdisjoint(high)
     assert max(low) < min(train)
     assert min(high) > max(train)
+
+
+def test_explicit_fixed_context_split():
+    splits = build_context_splits(
+        "length", {"train": {"values": [1.0]}}, seed=17
+    )
+    assert splits == {"train": {0: {"l": 1.0}}}

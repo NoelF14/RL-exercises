@@ -1,0 +1,11 @@
+phase0_config: ../phase0.yaml
+
+# Each entry is an experiment-level configuration. The runner expands the
+# configured methods and seeds into one atomic job per output directory.
+configs:
+  - default_100k.yaml
+  - default_300k.yaml
+  - specialist_low_300k.yaml
+  - specialist_center_300k.yaml
+  - specialist_high_300k.yaml
+  - contextual_300k.yaml
