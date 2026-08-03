@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crl-context-ood"
+version = "0.1.0"
+description = "Phase 0 experiments for contextual RL under hidden context"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "carl-bench==1.1.1",
+  "stable-baselines3==2.7.0",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+crl-ood-train = "crl_ood.training.train_ppo:main"
+crl-ood-evaluate = "crl_ood.evaluation.evaluate:main"
+crl-ood-phase0 = "crl_ood.training.train_ppo:phase0_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

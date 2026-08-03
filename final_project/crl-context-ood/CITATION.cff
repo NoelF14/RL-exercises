@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "CRL Context OOD: Phase 0 Hidden-Context Experiments"
+type: software
+version: 0.1.0
+date-released: 2026-08-03
+authors:
+  - name: "CRL Context OOD contributors"
+preferred-citation:
+  type: software
+  title: "CRL Context OOD: Phase 0 Hidden-Context Experiments"
+  version: 0.1.0
+  authors:
+    - name: "CRL Context OOD contributors"
