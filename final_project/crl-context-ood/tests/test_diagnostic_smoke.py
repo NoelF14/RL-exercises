@@ -22,4 +22,4 @@ def test_tiny_fixed_default_context_training_smoke(tmp_path):
     assert run_dir == tmp_path / "tiny_diagnostic_smoke/length/hidden/seed_0"
     assert (run_dir / "model.zip").is_file()
     assert (run_dir / "episode_returns.csv").is_file()
-    assert not (ROOT / "results/phase0_diagnostic").exists()
+    assert not (tmp_path / "phase0_diagnostic").exists()
