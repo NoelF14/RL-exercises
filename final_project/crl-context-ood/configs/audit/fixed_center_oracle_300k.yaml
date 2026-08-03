@@ -1,0 +1,23 @@
+experiment:
+  name: fixed_center_oracle_300k
+  results_dir: results/phase0_audit
+  seeds: [0, 1]
+  modes: [oracle]
+  context_features: [length]
+environment:
+  split_seed: 17
+  oracle_normalization: train_range
+  splits:
+    train: {values: [1.0]}
+training:
+  total_timesteps: 300000
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  device: auto
+evaluation: {episodes_per_context: 5, deterministic: true, seed_offset: 10000}
+reproducibility: {deterministic_torch: true}
+

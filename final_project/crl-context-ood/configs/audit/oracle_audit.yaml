@@ -1,0 +1,12 @@
+audit:
+  results_dir: results/phase0_audit
+  diagnostic_results_dir: results/phase0_diagnostic
+  feature: length
+  specialist_experiments:
+    low: specialist_low_300k
+    center: specialist_center_300k
+    high: specialist_high_300k
+  contextual_experiment: contextual_300k
+  seeds: [0, 1]
+  observation_modes: [true_context, zero_context, shuffled_context]
+

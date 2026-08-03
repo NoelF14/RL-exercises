@@ -26,6 +26,9 @@ crl-ood-phase0 = "crl_ood.training.train_ppo:phase0_main"
 crl-ood-analyze = "crl_ood.analysis.analyze_phase0:main"
 crl-ood-diagnostic = "crl_ood.diagnostic.run:main"
 crl-ood-diagnostic-analyze = "crl_ood.analysis.analyze_diagnostic:main"
+crl-ood-oracle-audit = "crl_ood.audit.evaluate:main"
+crl-ood-fixed-center-oracle = "crl_ood.audit.run_fixed_center:main"
+crl-ood-oracle-audit-analyze = "crl_ood.analysis.analyze_oracle_audit:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

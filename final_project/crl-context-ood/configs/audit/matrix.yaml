@@ -1,0 +1,4 @@
+phase0_config: ../phase0.yaml
+default_300k_config: ../diagnostic/default_300k.yaml
+config: fixed_center_oracle_300k.yaml
+
