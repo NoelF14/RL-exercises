@@ -18,15 +18,13 @@ def make_pendulum_env(
     mode: str,
     seed: int,
     *,
+    context_normalization: tuple[float, float],
     static_context: bool = False,
 ) -> ContextObservation:
     """Create a seeded CARLPendulum with a Phase 0 observation mode."""
     if not contexts:
         raise ValueError("At least one context is required")
-    context_dict = {
-        int(context_id): {str(key): float(value) for key, value in context.items()}
-        for context_id, context in contexts.items()
-    }
+    context_dict = complete_carl_contexts(contexts)
     base_env = gym.make("Pendulum-v1", render_mode="rgb_array")
     carl_env = CARLPendulum(
         env=base_env,
@@ -35,7 +33,25 @@ def make_pendulum_env(
         obs_context_as_dict=False,
         context_selector=StaticSelector if static_context else None,
     )
-    env = ContextObservation(carl_env, mode=mode)
+    env = ContextObservation(
+        carl_env,
+        mode=mode,
+        context_center=context_normalization[0],
+        context_scale=context_normalization[1],
+    )
     env.action_space.seed(seed)
     env.observation_space.seed(seed)
     return env
+
+
+def complete_carl_contexts(
+    contexts: Mapping[int, Mapping[str, float]],
+) -> dict[int, dict[str, float]]:
+    """Expand partial contexts exactly as CARL's context setter does."""
+    defaults = CARLPendulum.get_default_context()
+    completed: dict[int, dict[str, float]] = {}
+    for context_id, context in contexts.items():
+        full_context = {str(key): float(value) for key, value in defaults.items()}
+        full_context.update({str(key): float(value) for key, value in context.items()})
+        completed[int(context_id)] = full_context
+    return completed

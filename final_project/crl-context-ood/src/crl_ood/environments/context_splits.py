@@ -50,7 +50,7 @@ def build_context_splits(
             for context_id, value in enumerate(values)
         }
 
-    _validate_ood_disjoint(splits, key)
+    _validate_split_relationships(splits, key)
     return splits
 
 
@@ -60,14 +60,42 @@ def context_values(contexts: Mapping[int, Mapping[str, float]], feature: str) ->
     return [float(context[key]) for context in contexts.values()]
 
 
-def _validate_ood_disjoint(
+def context_normalization(
+    train_contexts: Mapping[int, Mapping[str, float]], feature: str
+) -> tuple[float, float]:
+    """Return center and scale mapping the training extrema to -1 and 1."""
+    values = np.asarray(context_values(train_contexts, feature), dtype=np.float64)
+    center = float((values.min() + values.max()) / 2.0)
+    scale = float((values.max() - values.min()) / 2.0)
+    if scale == 0.0:
+        scale = abs(center) if center != 0.0 else 1.0
+    return center, scale
+
+
+def _validate_split_relationships(
     splits: Mapping[str, Mapping[int, Mapping[str, float]]], key: str
 ) -> None:
     train = np.asarray([context[key] for context in splits["train"].values()])
+    identity = np.asarray([context[key] for context in splits["id_test"].values()])
+    if float(identity.min()) < float(train.min()) or float(identity.max()) > float(
+        train.max()
+    ):
+        raise ValueError("id_test values must remain inside the train range")
+    all_values = {
+        split_name: np.asarray([context[key] for context in contexts.values()])
+        for split_name, contexts in splits.items()
+    }
+    split_names = list(all_values)
+    for index, left_name in enumerate(split_names):
+        for right_name in split_names[index + 1 :]:
+            left = all_values[left_name]
+            right = all_values[right_name]
+            if np.any(np.isclose(left[:, None], right[None, :])):
+                raise ValueError(
+                    f"{left_name} and {right_name} context values must be disjoint"
+                )
     for split_name in ("ood_low", "ood_high"):
         ood = np.asarray([context[key] for context in splits[split_name].values()])
-        if np.any(np.isclose(train[:, None], ood[None, :])):
-            raise ValueError(f"Train and {split_name} context values must be disjoint")
         if split_name == "ood_low" and not float(ood.max()) < float(train.min()):
             raise ValueError("ood_low range must be strictly below the train range")
         if split_name == "ood_high" and not float(ood.min()) > float(train.max()):

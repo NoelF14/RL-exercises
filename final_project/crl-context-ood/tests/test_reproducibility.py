@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from crl_ood.environments.context_splits import build_context_splits
+from crl_ood.environments.context_splits import (
+    build_context_splits,
+    context_normalization,
+)
 from crl_ood.environments.factory import make_pendulum_env
 from crl_ood.utils.seeding import seed_everything
 
@@ -12,7 +15,13 @@ def _short_rollout(smoke_config):
     contexts = build_context_splits(
         "dt", smoke_config["environment"]["splits"], seed=23
     )["train"]
-    env = make_pendulum_env(contexts, "dt", "hidden", seed=101)
+    env = make_pendulum_env(
+        contexts,
+        "dt",
+        "hidden",
+        seed=101,
+        context_normalization=context_normalization(contexts, "dt"),
+    )
     observation, info = env.reset(seed=101)
     trajectory = [(observation.copy(), info["context_id"], 0.0)]
     for action in (

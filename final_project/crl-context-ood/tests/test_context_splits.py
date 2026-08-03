@@ -27,10 +27,13 @@ def test_train_and_ood_ranges_are_disjoint(smoke_config, feature):
     splits = build_context_splits(feature, smoke_config["environment"]["splits"], seed=0)
     key = carl_feature_key(feature)
     train = {context[key] for context in splits["train"].values()}
+    identity = {context[key] for context in splits["id_test"].values()}
     low = {context[key] for context in splits["ood_low"].values()}
     high = {context[key] for context in splits["ood_high"].values()}
 
+    assert train.isdisjoint(identity)
     assert train.isdisjoint(low)
     assert train.isdisjoint(high)
+    assert low.isdisjoint(high)
     assert max(low) < min(train)
     assert min(high) > max(train)

@@ -67,15 +67,24 @@ selector. Evaluation pins one context per environment and uses the same context
 values and episode seeds for hidden and oracle agents.
 
 The hidden observation is the three-dimensional Pendulum state. The oracle
-observation concatenates the single active context value, producing four
-dimensions. Both use SB3's `MlpPolicy` and deterministic prediction during
-evaluation.
+observation concatenates only the single active context value, normalized so
+the minimum and maximum training contexts map to `-1` and `1`; OOD values may
+therefore lie outside that interval. This produces a four-dimensional oracle
+observation without exposing CARL's other context fields. Both methods use
+SB3's `MlpPolicy` and deterministic prediction during evaluation.
 
 Every atomic run writes the following under
 `results/<experiment>/<feature>/<mode>/seed_<seed>/`:
 
 - `resolved_config.yaml` and `seed.txt`;
 - `metadata.json` with Git commit/dirty state, package versions, and device data;
+- `contexts.yaml` with the fully expanded CARL contexts passed to the environment;
+- `contexts.csv` and `evaluation_plan.csv` with ordered context values and seeds;
 - `model.zip`, the SB3 PPO checkpoint;
-- `episode_returns.csv`, one row per evaluated episode;
+- `episode_returns.csv`, one tidy row per evaluated episode, including run,
+  method, context, seed, length, return, and termination type;
 - `context_returns.csv`, one aggregate row per split and context.
+
+Standalone evaluation loads `contexts.yaml` and `evaluation_plan.csv` from the
+checkpoint directory by default. This prevents later configuration edits from
+silently changing the evaluation set.

@@ -8,15 +8,19 @@ from typing import Any
 
 from stable_baselines3 import PPO
 
-from crl_ood.environments.context_splits import build_context_splits
+from crl_ood.environments.context_splits import (
+    build_context_splits,
+    context_normalization,
+)
 from crl_ood.environments.factory import make_pendulum_env
-from crl_ood.evaluation.evaluate import evaluate_model
+from crl_ood.evaluation.evaluate import build_evaluation_plan, evaluate_model
 from crl_ood.utils.metadata import (
     load_config,
     resolved_run_config,
+    write_context_artifacts,
     write_run_provenance,
 )
-from crl_ood.utils.paths import run_directory
+from crl_ood.utils.paths import run_directory, run_identifier
 from crl_ood.utils.seeding import seed_everything
 
 
@@ -29,11 +33,31 @@ def train_one(config: dict[str, Any], feature: str, mode: str, seed: int) -> Pat
         config["environment"]["splits"],
         int(config["environment"]["split_seed"]),
     )
+    if config["environment"].get("oracle_normalization") != "train_range":
+        raise ValueError("Phase 0 supports only oracle_normalization: train_range")
+    normalization = context_normalization(splits["train"], feature)
     run_dir = run_directory(config, feature, mode, seed)
+    run_id = run_identifier(config, feature, mode, seed)
     resolved = resolved_run_config(config, feature, mode, seed)
+    evaluation_plan = build_evaluation_plan(config, feature, mode, seed, splits)
     write_run_provenance(run_dir, resolved, seed)
+    write_context_artifacts(
+        run_dir,
+        run_id,
+        mode,
+        feature,
+        splits,
+        normalization,
+        evaluation_plan,
+    )
 
-    env = make_pendulum_env(splits["train"], feature, mode, seed)
+    env = make_pendulum_env(
+        splits["train"],
+        feature,
+        mode,
+        seed,
+        context_normalization=normalization,
+    )
     training = config["training"]
     model = PPO(
         "MlpPolicy",
@@ -54,7 +78,17 @@ def train_one(config: dict[str, Any], feature: str, mode: str, seed: int) -> Pat
     env.close()
 
     seed_everything(seed, deterministic_torch=deterministic_torch)
-    evaluate_model(model, config, feature, mode, seed, run_dir)
+    evaluate_model(
+        model,
+        config,
+        feature,
+        mode,
+        seed,
+        run_dir,
+        splits=splits,
+        normalization=normalization,
+        evaluation_plan=evaluation_plan,
+    )
     return run_dir
 
 
