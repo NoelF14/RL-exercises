@@ -85,10 +85,17 @@ class TargetAngleContext(gym.Wrapper):
     def step(self, action: Any) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         if self._target_angle is None or self._last_observation is None:
             raise RuntimeError("reset() must be called before step()")
-        observation, _old_reward, terminated, truncated, info = self.env.step(action)
+        observation, original_reward, terminated, truncated, info = self.env.step(action)
         if int(info["context_id"]) != self._context_id:
             raise RuntimeError("Target angle changed within an episode")
-        reward = target_reward(self._last_observation, action, self._target_angle)
+        # Preserve the native task as a literal identity case.  Reconstructing
+        # theta from float32 cos/sin observations is numerically faithful but
+        # can differ from Pendulum's state-based reward by a few ulps.
+        reward = (
+            float(original_reward)
+            if self._target_angle == 0.0
+            else target_reward(self._last_observation, action, self._target_angle)
+        )
         self._last_observation = observation
         return self._observation(observation), reward, terminated, truncated, self._context_info(info)
 

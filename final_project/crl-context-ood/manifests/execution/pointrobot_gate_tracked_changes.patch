@@ -1,0 +1,67 @@
+diff --git a/final_project/crl-context-ood/README.md b/final_project/crl-context-ood/README.md
+index dd48308..e39b15b 100644
+--- a/final_project/crl-context-ood/README.md
++++ b/final_project/crl-context-ood/README.md
+@@ -11,6 +11,24 @@ The current implementation varies one `CARLPendulum` context feature at a time:
+ This repository intentionally does not contain VAE or contrastive context
+ encoders. PPO is provided by Stable-Baselines3 and is not reimplemented here.
+ 
++## Dense Semi-Circle PointRobot candidate
++
++The primary candidate is now the dense, state-based Semi-Circle PointRobot in
++`crl_ood.pointrobot_gate`. It is inspired by the Semi-Circle PointRobot task
++used in ContraBAR and was independently written for this project; no external
++environment code was copied. Our version uses dense post-transition reward,
++fixed-horizon single-episode interaction, explicit continuous train/ID/OOD
++splits, and is intended for frozen-encoder benchmarking later. It is a
++contextual MDP because the goal angle changes reward while state/action spaces
++and dynamics remain fixed. CARLCartPole remains the predeclared second
++environment; HalfCheetahVel is optional and is not implemented.
++
++The 12-job real matrix is configured for 200,000 PPO steps per atomic run and
++must be executed independently of Codex. Dry-run, one-job, resumable matrix,
++probe, and result-only analysis commands are documented in
++`codex_pointrobot_gate_report.md`. OOD-left and OOD-right are persisted
++separately and never enter gate acceptance.
++
+ ## Installation
+ 
+ Python 3.10 or newer is required. A local environment can be created with:
+diff --git a/final_project/crl-context-ood/pyproject.toml b/final_project/crl-context-ood/pyproject.toml
+index c298930..5a7a9ba 100644
+--- a/final_project/crl-context-ood/pyproject.toml
++++ b/final_project/crl-context-ood/pyproject.toml
+@@ -31,6 +31,9 @@ crl-ood-fixed-center-oracle = "crl_ood.audit.run_fixed_center:main"
+ crl-ood-oracle-audit-analyze = "crl_ood.analysis.analyze_oracle_audit:main"
+ crl-ood-goal-pilot = "crl_ood.goal_pilot.run:main"
+ crl-ood-goal-pilot-analyze = "crl_ood.analysis.analyze_goal_pilot:main"
++crl-ood-pointrobot-gate = "crl_ood.pointrobot_gate.run:main"
++crl-ood-pointrobot-probe = "crl_ood.pointrobot_gate.probe:main"
++crl-ood-pointrobot-analyze = "crl_ood.analysis.analyze_pointrobot_gate:main"
+ 
+ [tool.setuptools.packages.find]
+ where = ["src"]
+diff --git a/final_project/crl-context-ood/src/crl_ood/goal_pilot/environment.py b/final_project/crl-context-ood/src/crl_ood/goal_pilot/environment.py
+index b00e98e..7d89b98 100644
+--- a/final_project/crl-context-ood/src/crl_ood/goal_pilot/environment.py
++++ b/final_project/crl-context-ood/src/crl_ood/goal_pilot/environment.py
+@@ -85,10 +85,17 @@ class TargetAngleContext(gym.Wrapper):
+     def step(self, action: Any) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+         if self._target_angle is None or self._last_observation is None:
+             raise RuntimeError("reset() must be called before step()")
+-        observation, _old_reward, terminated, truncated, info = self.env.step(action)
++        observation, original_reward, terminated, truncated, info = self.env.step(action)
+         if int(info["context_id"]) != self._context_id:
+             raise RuntimeError("Target angle changed within an episode")
+-        reward = target_reward(self._last_observation, action, self._target_angle)
++        # Preserve the native task as a literal identity case.  Reconstructing
++        # theta from float32 cos/sin observations is numerically faithful but
++        # can differ from Pendulum's state-based reward by a few ulps.
++        reward = (
++            float(original_reward)
++            if self._target_angle == 0.0
++            else target_reward(self._last_observation, action, self._target_angle)
++        )
+         self._last_observation = observation
+         return self._observation(observation), reward, terminated, truncated, self._context_info(info)
+ 

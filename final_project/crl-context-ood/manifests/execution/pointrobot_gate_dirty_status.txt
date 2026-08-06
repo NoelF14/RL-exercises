@@ -1,0 +1,26 @@
+ M README.md
+ M pyproject.toml
+ M src/crl_ood/goal_pilot/environment.py
+?? codex_goal_pilot_mechanistic_audit_report.md
+?? codex_goal_pilot_report.md
+?? codex_oracle_audit_report.md
+?? codex_pointrobot_gate_report.md
+?? configs/pointrobot_gate/
+?? manifests/
+?? scripts/analyze_goal_pilot_mechanistic_audit.py
+?? scripts/analyze_pointrobot_gate.py
+?? scripts/reevaluate_goal_pilot.py
+?? scripts/run_goal_pilot_mechanistic_audit.py
+?? scripts/run_pointrobot_gate.py
+?? scripts/run_pointrobot_probe.py
+?? src/crl_ood/analysis/analyze_pointrobot_gate.py
+?? src/crl_ood/mechanistic_audit/
+?? src/crl_ood/pointrobot_gate/
+?? tests/test_mechanistic_environment_audit.py
+?? tests/test_mechanistic_preservation.py
+?? tests/test_mechanistic_reevaluation.py
+?? tests/test_mechanistic_result_analysis.py
+?? tests/test_pointrobot_gate_analysis.py
+?? tests/test_pointrobot_gate_environment.py
+?? tests/test_pointrobot_gate_matrix_probe.py
+?? tests/test_pointrobot_gate_preservation.py

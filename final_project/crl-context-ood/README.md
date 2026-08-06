@@ -11,6 +11,24 @@ The current implementation varies one `CARLPendulum` context feature at a time:
 This repository intentionally does not contain VAE or contrastive context
 encoders. PPO is provided by Stable-Baselines3 and is not reimplemented here.
 
+## Dense Semi-Circle PointRobot candidate
+
+The primary candidate is now the dense, state-based Semi-Circle PointRobot in
+`crl_ood.pointrobot_gate`. It is inspired by the Semi-Circle PointRobot task
+used in ContraBAR and was independently written for this project; no external
+environment code was copied. Our version uses dense post-transition reward,
+fixed-horizon single-episode interaction, explicit continuous train/ID/OOD
+splits, and is intended for frozen-encoder benchmarking later. It is a
+contextual MDP because the goal angle changes reward while state/action spaces
+and dynamics remain fixed. CARLCartPole remains the predeclared second
+environment; HalfCheetahVel is optional and is not implemented.
+
+The 12-job real matrix is configured for 200,000 PPO steps per atomic run and
+must be executed independently of Codex. Dry-run, one-job, resumable matrix,
+probe, and result-only analysis commands are documented in
+`codex_pointrobot_gate_report.md`. OOD-left and OOD-right are persisted
+separately and never enter gate acceptance.
+
 ## Installation
 
 Python 3.10 or newer is required. A local environment can be created with:
