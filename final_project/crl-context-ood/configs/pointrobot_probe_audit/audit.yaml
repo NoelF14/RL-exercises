@@ -1,0 +1,35 @@
+experiment:
+  name: pointrobot_probe_audit_v2
+  results_dir: results/pointrobot_probe_audit
+  source_config: configs/pointrobot_gate/gate.yaml
+  source_results: results/pointrobot_gate
+
+audit:
+  seeds: [0, 1]
+  trajectories_per_context: 40
+  history_lengths: [1, 2, 3, 5, 10]
+  behavior_policies: [existing_exploratory, isotropic_random, deterministic_orthogonal]
+  selected_behavior_policy: deterministic_orthogonal
+  action_seed_offset: 70000
+  isotropic_seed_offset: 170000
+  rank_tolerance: 1.0e-10
+  analytic_id_max_circular_mae: 0.01
+  analytic_id_min_full_rank_fraction: 0.95
+  nonlinear_candidates: [mlp, gru]
+  nonlinear_history_candidates: [5, 10]
+  nonlinear_min_relative_reduction_vs_state: 0.50
+  nonlinear_min_relative_improvement_vs_h1: 0.20
+
+models:
+  ridge_alpha: 1.0e-3
+  engineered_ridge_alpha: 1.0e-6
+  mlp:
+    hidden_sizes: [32, 16]
+    learning_rate: 0.01
+    epochs: 1200
+    weight_decay: 1.0e-6
+  gru:
+    hidden_size: 16
+    learning_rate: 0.01
+    epochs: 1200
+    weight_decay: 1.0e-6
