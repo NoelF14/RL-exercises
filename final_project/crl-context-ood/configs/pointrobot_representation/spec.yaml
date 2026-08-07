@@ -1,0 +1,94 @@
+# Frozen diagnostic-only representation analysis. Never use these results for selection.
+format_version: 1
+experiment:
+  name: pointrobot_representation
+  results_dir: results/pointrobot_representation
+  authoritative_primary_source_snapshot: 6b9cd43da2cb9e276b6c772e1047435f142de1c5
+  primary_execution_source_commit: 41b796cd315013c5398ff15727a05d263a7393d6
+  primary_configuration_checksum: 60bdc763b14860b2c3b243b99c45f278f4dc1dbef48c9ba82b50e72d5de67724
+  selection_role: diagnostic_only
+  checkpoint_reselection: forbidden
+dataset:
+  path: results/pointrobot_primary/dataset/full
+  checksum: cb826e04b344eb875662b8775b89f9c60bdb9bae895f25a260d25ef422a589fa
+  checksum_artifact: results/pointrobot_primary/dataset/full/dataset.sha256
+  metadata_artifact: results/pointrobot_primary/dataset/full/dataset.json
+methods: [vae, contrastive]
+encoder_seeds: [0, 1, 2, 3, 4]
+checkpoints:
+  rule: results/pointrobot_primary/encoders/{method}/seed_{seed}/best.pt
+  expected_count: 10
+  provenance_manifest: results/pointrobot_primary/primary_encoder_checkpoint_manifest.csv
+  sha256:
+    vae:
+      0: 035b57cbe66170dd2469dfc51daee35fed89d2073ef360f7c15e3d2d5ca538f6
+      1: de891ac65c3a88c94bccdba85872d7e3647a29bf7cae4d7499d34934cd486398
+      2: f0a332bd03d4f0b1677165f665bab9d26dcc404c47921495ca9bd2a167d96cc5
+      3: 176e8cfbc1a839cb00f6f8f72efef576ee5d4ff5def10896a59a778d186f6ea0
+      4: 2acccd4332b69ab4f8ceb027756515aa0a693f08d03f253d280ad6701e0d691a
+    contrastive:
+      0: 136a3884c4dda6454e9864f5681a2549bd9af495b8cb3562f9d623c7a330c20d
+      1: 9db27375aca8fe960c88005ae9e01786174efcdd79679d17d3671521ebd5c08b
+      2: 0b679ce4f8688a428148c60e6fe38a85ca865390d3e6cb93d87435032de6fdf4
+      3: 76be02b86b792f2a870d5b9df6400d30daba981c12f3efc54dbb0bda6af3e7f1
+      4: 30358029dda439a54d7b328013a554a05721e4d4c24c3dcae650fdd7340e7234
+contexts:
+  train: [-0.6, -0.3, 0.0, 0.3, 0.6]
+  id: [-0.45, -0.15, 0.15, 0.45]
+  ood_left: [-1.0, -0.8]
+  ood_right: [0.8, 1.0]
+history:
+  length: 5
+  transition_fields: [state, action, reward, next_state]
+  transition_dimension: 7
+  convention: completed_transitions_max_0_t_minus_H_through_t_minus_1
+  current_state_outside_latent: true
+  empty_history_latent: exact_zero_vector
+latent:
+  dimension: 8
+  inference: deterministic_frozen
+diagnostic_trajectories:
+  implementation: reuse_pointrobot_encoder_evaluation_semantics
+  action_source: first_N_action_sequences_from_immutable_primary_dataset
+  behavior_policy: orthogonal_then_isotropic
+  trajectories_per_context: 40
+  trajectory_seed_offset: 41000
+  trajectory_seeds: [41000, 41001, 41002, 41003, 41004, 41005, 41006, 41007, 41008, 41009,
+    41010, 41011, 41012, 41013, 41014, 41015, 41016, 41017, 41018, 41019,
+    41020, 41021, 41022, 41023, 41024, 41025, 41026, 41027, 41028, 41029,
+    41030, 41031, 41032, 41033, 41034, 41035, 41036, 41037, 41038, 41039]
+  horizon: 50
+  eligible_timesteps: all_decision_times_0_through_49
+  action_sequences_shared_across_methods_seeds_and_contexts: true
+  ppo_trajectories_forbidden: true
+probe:
+  predictor: ordinary_least_squares_with_intercept
+  target: signed_goal_angle_radians
+  fit_split: train
+  evaluation_splits: [train, id, ood_left, ood_right]
+  metric: circular_absolute_angle_error
+  formula: abs(atan2(sin(phi_hat-phi),cos(phi_hat-phi)))
+  state_only_features: [current_state_x, current_state_y]
+  state_only_history_forbidden: true
+  selection_role: diagnostic_only
+pca:
+  components: 2
+  fit_split: train
+  standardization: none
+  refit_on_evaluation_splits: false
+  cross_seed_alignment: forbidden
+  main_visualization_seed: 0
+analysis:
+  independent_replicate: encoder_seed
+  expected_replicates_per_method: 5
+  contexts_and_samples_are_not_replicates: true
+  directional_ood: [ood_left, ood_right]
+  ood_distance_groups:
+    near: 0.8
+    far: 1.0
+  inference_tests: forbidden_n_equals_5_descriptive_only
+  evaluation_manifest: representation_evaluation_files.sha256
+  analysis_manifest: representation_analysis_files.sha256
+  final_manifest: representation_final_files.sha256
+  primary_seed_results: results/pointrobot_primary/primary_summary_by_seed.csv
+  primary_oracle_gap: results/pointrobot_primary/primary_oracle_gap_closure.csv
