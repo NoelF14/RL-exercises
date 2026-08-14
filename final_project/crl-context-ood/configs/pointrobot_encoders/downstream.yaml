@@ -2,7 +2,7 @@ experiment:
   name: pointrobot_encoder_downstream
   results_dir: results/pointrobot_encoders/downstream
   source_gate_config: configs/pointrobot_gate/gate.yaml
-methods: [no_context, oracle, vae, contrastive]
+methods: [no_context, oracle, vae, contrastive, contrastive_alternative]
 integration_pilot:
   seeds: [0, 1]
   total_timesteps: 200000

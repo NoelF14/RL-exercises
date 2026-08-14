@@ -60,6 +60,36 @@ def hard_negative_rewards(batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor,
     tensor = torch.as_tensor(np.asarray(output), device=batch["future_rewards"].device)
     return tensor, provenance
 
+def hard_negative_rewards_alternative(batch: dict[str, torch.Tensor], rng: random.Random) -> tuple[torch.Tensor, list[dict[str, Any]]]:
+    """Relabel identical future state/actions under a deterministic different train goal."""
+    contexts = batch["context"].detach().cpu().numpy()
+    states = batch["future_states"].detach().cpu().numpy()
+    actions = batch["future_actions"].detach().cpu().numpy()
+    output, provenance = [], []
+    for index, (context, future_states, future_actions) in enumerate(zip(contexts, states, actions)):
+        source = min(range(len(TRAIN_CONTEXTS)), key=lambda i: abs(TRAIN_CONTEXTS[i] - float(context)))
+        # 50% left neighbour, 50% right neighbour, no wrap-around
+        candidates = []
+        if source > 0:
+            candidates.append(source - 1)
+        if source < len(TRAIN_CONTEXTS) - 1:
+            candidates.append(source + 1)
+
+        negative_source = rng.choice(candidates)
+        negative_goal = TRAIN_CONTEXTS[negative_source]
+
+        rewards = pointrobot_reward(future_states, future_actions, negative_goal).astype(np.float32)
+        different = bool(not np.allclose(
+            rewards, batch["future_rewards"][index].detach().cpu().numpy()))
+        if not different:
+            raise ValueError("hard negative must have a different reward target")
+        output.append(rewards)
+        provenance.append({"batch_index": index, "positive_goal": float(TRAIN_CONTEXTS[source]),
+                           "negative_goal": float(negative_goal), "state_action_preserved": True,
+                           "reward_targets_different": different})
+    tensor = torch.as_tensor(np.asarray(output), device=batch["future_rewards"].device)
+    return tensor, provenance
+
 
 def train_encoder(config: dict[str, Any], dataset_dir: str | Path, method: str, seed: int,
                   output_dir: str | Path, *, max_updates: int | None = None,
@@ -140,9 +170,14 @@ def _loss(model: torch.nn.Module, method: str, batch: dict[str, torch.Tensor],
         losses = vae_objective(model(batch), batch, float(config["vae"]["state_loss_weight"]),
                                float(config["vae"]["reward_loss_weight"]), float(config["vae"]["kl_weight"]))
         return losses, []
-    negative, provenance = hard_negative_rewards(batch)
-    losses = contrastive_objective(model, batch, negative, float(config["contrastive"]["temperature"]),
-                                   str(config["contrastive"]["negative_mode"]))
+    if method == "contrastive":
+        negative, provenance = hard_negative_rewards(batch)
+        losses = contrastive_objective(model, batch, negative, float(config["contrastive"]["temperature"]),
+                                           str(config["contrastive"]["negative_mode"]))
+    if method == "contrastive_alternative":
+        negative, provenance = hard_negative_rewards_alternative(batch, random.Random(config["contrastive_alternative"]["seed"]))
+        losses = contrastive_objective(model, batch, negative, float(config["contrastive_alternative"]["temperature"]),
+                                           str(config["contrastive_alternative"]["negative_mode"]))
     return losses, provenance
 
 

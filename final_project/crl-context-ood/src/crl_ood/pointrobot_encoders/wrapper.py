@@ -77,7 +77,7 @@ def make_policy_env(method: str, goal_angles: float | Sequence[float], env_kwarg
         return DenseSemiCirclePointRobot(goal_angles, "hidden", **env_kwargs)
     if method == "oracle":
         return DenseSemiCirclePointRobot(goal_angles, "oracle", **env_kwargs)
-    if method not in {"vae", "contrastive"}:
+    if method not in {"vae", "contrastive", "contrastive_alternative"}:
         raise ValueError(f"unknown downstream method {method!r}")
     if checkpoint is None or not dataset_checksum:
         raise ValueError("learned methods require explicit checkpoint and dataset checksum")

@@ -35,7 +35,7 @@ def build_jobs(config: dict[str, Any], matrix: str, checkpoints: dict[str, str] 
     jobs = []
     for method in config["methods"]:
         checkpoint = Path(checkpoints[method]).resolve() if checkpoints and method in checkpoints else None
-        if method in {"vae", "contrastive"} and (checkpoint is None or not dataset_checksum):
+        if method in {"vae", "contrastive", "contrastive_alternative"} and (checkpoint is None or not dataset_checksum):
             raise ValueError(f"{method} requires an explicit checkpoint and dataset checksum")
         for seed in section["seeds"]:
             steps = int(timesteps_override if timesteps_override is not None else section["total_timesteps"])

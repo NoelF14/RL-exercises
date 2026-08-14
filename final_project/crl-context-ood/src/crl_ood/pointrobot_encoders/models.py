@@ -124,7 +124,7 @@ def contrastive_objective(model: ContrastiveHistoryEncoder, batch: dict[str, tor
     query = nn.functional.normalize(model.encode(batch["history"], batch["length"], batch.get("mask")), dim=-1)
     positive = model.future_embedding(batch["current_state"], batch["future_states"],
                                       batch["future_actions"], batch["future_rewards"])
-    if mode == "reward_relabel":
+    if mode == "reward_relabel" or mode == "reward_relabel_alternative":
         if negative_rewards.shape != batch["future_rewards"].shape:
             raise ValueError("one valid hard-negative reward block is required per sample")
         negative = model.future_embedding(batch["current_state"], batch["future_states"],
@@ -163,6 +163,6 @@ def build_model(method: str, encoder: dict[str, Any]) -> nn.Module:
               "latent_dim": int(encoder["latent_dim"]), "future_horizon": int(encoder["future_horizon"])}
     if method == "vae":
         return VAEHistoryEncoder(**kwargs)
-    if method == "contrastive":
+    if method == "contrastive" or method == "contrastive_alternative":
         return ContrastiveHistoryEncoder(**kwargs)
     raise ValueError(f"unknown encoder method {method!r}")

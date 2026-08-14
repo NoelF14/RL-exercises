@@ -24,11 +24,11 @@ def main(argv: list[str] | None = None) -> None:
     dataset.add_argument("--budget", choices=("tiny", "small", "full"), required=True)
     dataset.add_argument("--dry-run", action="store_true")
     train = sub.add_parser("train")
-    train.add_argument("--dataset", required=True); train.add_argument("--method", choices=("vae", "contrastive"), required=True)
+    train.add_argument("--dataset", required=True); train.add_argument("--method", choices=("vae", "contrastive", "contrastive_alternative"), required=True)
     train.add_argument("--seed", type=int, required=True); train.add_argument("--output", required=True)
     train.add_argument("--max-updates", type=int); train.add_argument("--resume", action="store_true")
     pilot = sub.add_parser("pilot")
-    pilot.add_argument("--dataset", required=True); pilot.add_argument("--method", choices=("vae", "contrastive", "all"), default="all")
+    pilot.add_argument("--dataset", required=True); pilot.add_argument("--method", choices=("vae", "contrastive", "contrastive_alternative", "all"), default="all")
     pilot.add_argument("--resume", action="store_true")
     frozen = sub.add_parser("evaluate-frozen")
     frozen.add_argument("--dataset", required=True); frozen.add_argument("--checkpoint", required=True); frozen.add_argument("--output", required=True)
@@ -36,9 +36,10 @@ def main(argv: list[str] | None = None) -> None:
     downstream.add_argument("--downstream-config", default="configs/pointrobot_encoders/downstream.yaml")
     downstream.add_argument("--matrix", choices=("integration_pilot", "full_primary"), default="integration_pilot")
     downstream.add_argument("--vae-checkpoint"); downstream.add_argument("--contrastive-checkpoint")
+    downstream.add_argument("--contrastive-alternative-checkpoint")
     downstream.add_argument("--dataset-checksum"); downstream.add_argument("--dry-run", action="store_true")
     downstream.add_argument("--timesteps-override", type=int)
-    downstream.add_argument("--methods", nargs="+", choices=("no_context", "oracle", "vae", "contrastive"))
+    downstream.add_argument("--methods", nargs="+", choices=("no_context", "oracle", "vae", "contrastive", "contrastive_alternative"))
     downstream.add_argument("--seeds", nargs="+", type=int)
     args = parser.parse_args(argv)
     config = load_spec(args.config)
@@ -67,7 +68,8 @@ def main(argv: list[str] | None = None) -> None:
     else:
         downstream_config = load_yaml(args.downstream_config)
         checkpoints = {key: value for key, value in {"vae": args.vae_checkpoint,
-            "contrastive": args.contrastive_checkpoint}.items() if value}
+            "contrastive": args.contrastive_checkpoint,
+            "contrastive_alternative": args.contrastive_alternative_checkpoint}.items() if value}
         jobs = build_jobs(downstream_config, args.matrix, checkpoints, args.dataset_checksum,
                           timesteps_override=args.timesteps_override)
         if args.methods:

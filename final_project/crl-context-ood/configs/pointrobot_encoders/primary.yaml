@@ -38,9 +38,14 @@ vae:
 contrastive:
   temperature: 0.1
   negative_mode: reward_relabel
-  supported_negative_modes: [reward_relabel, in_batch]
+  supported_negative_modes: [reward_relabel, in_batch, reward_relabel_alternative]
+contrastive_alternative:
+  seed: 42
+  temperature: 0.1
+  negative_mode: reward_relabel_alternative
+  supported_negative_modes: [reward_relabel, in_batch, reward_relabel_alternative]
 pilot:
-  methods: [vae, contrastive]
+  methods: [vae, contrastive, contrastive_alternative]
   seeds: [0, 1]
   dataset_budget: small
 reproducibility:
