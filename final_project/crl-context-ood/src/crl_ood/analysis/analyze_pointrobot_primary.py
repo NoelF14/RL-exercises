@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-METHODS = ("no_context", "oracle", "vae", "contrastive")
-LEARNED = ("vae", "contrastive")
+METHODS = ("no_context", "oracle", "vae", "contrastive", "contrastive_alternative")
+LEARNED = ("vae", "contrastive", "contrastive_alternative")
 SEEDS = (0, 1, 2, 3, 4)
 SPLITS = {"train": (-0.6, -0.3, 0.0, 0.3, 0.6), "id": (-0.45, -0.15, 0.15, 0.45),
           "ood_left": (-1.0, -0.8), "ood_right": (0.8, 1.0)}
@@ -218,52 +218,229 @@ def _derived(rows: list[dict[str, Any]], by_seed: list[dict[str, Any]]) -> tuple
             item["std_across_seeds"] = _std(selected)
     return closure, degradation, near_far
 
+def _plots(
+    root: Path,
+    context: list[dict[str, Any]],
+    by_seed: list[dict[str, Any]],
+    closure: list[dict[str, Any]],
+    near_far: list[dict[str, Any]],
+) -> None:
 
-def _plots(root: Path, context: list[dict[str, Any]], by_seed: list[dict[str, Any]],
-           closure: list[dict[str, Any]], near_far: list[dict[str, Any]]) -> None:
-    def goal_plot(metric: str, filename: str, ylabel: str) -> None:
-        fig, ax = plt.subplots(figsize=(8, 4.5))
-        for method in METHODS:
-            angles = sorted({row["goal_angle"] for row in context})
-            means = [_mean(row[metric] for row in context if row["method"] == method and row["goal_angle"] == angle) for angle in angles]
-            ax.plot(angles, means, marker="o", label=method)
-        ax.set(xlabel="goal angle", ylabel=ylabel); ax.legend(); fig.tight_layout(); fig.savefig(root / filename, dpi=150); plt.close(fig)
-    goal_plot("mean_return", "return_by_goal.png", "mean return")
+    def goal_plot(
+        metric: str,
+        filename: str,
+        ylabel: str,
+        broken_axis: bool = False,
+    ) -> None:
+        if not broken_axis:
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+
+            for method in METHODS:
+                angles = sorted({row["goal_angle"] for row in context})
+                means = [
+                    _mean(
+                        row[metric]
+                        for row in context
+                        if row["method"] == method
+                        and row["goal_angle"] == angle
+                    )
+                    for angle in angles
+                ]
+                ax.plot(angles, means, marker="o", label=method)
+
+            ax.set(xlabel="goal angle", ylabel=ylabel)
+            ax.legend()
+            fig.tight_layout()
+            fig.savefig(root / filename, dpi=150)
+            plt.close(fig)
+
+        else:
+            fig, (ax_top, ax_bottom) = plt.subplots(
+                2,
+                1,
+                sharex=True,
+                figsize=(8, 5),
+                gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05},
+            )
+
+            for method in METHODS:
+                angles = sorted({row["goal_angle"] for row in context})
+                means = [
+                    _mean(
+                        row[metric]
+                        for row in context
+                        if row["method"] == method
+                        and row["goal_angle"] == angle
+                    )
+                    for angle in angles
+                ]
+
+                ax_top.plot(angles, means, marker="o", label=method)
+                ax_bottom.plot(angles, means, marker="o", label=method)
+
+            ax_top.set_ylim(-75, 0)
+
+            ax_bottom.set_ylim(-210, -150)
+
+            ax_top.set_ylabel(ylabel)
+            ax_bottom.set_xlabel("goal angle")
+
+            ax_top.legend()
+
+            ax_top.spines["bottom"].set_visible(False)
+            ax_bottom.spines["top"].set_visible(False)
+
+            ax_top.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
+
+            d = 0.015
+
+            ax_top.plot(
+                (-d, +d),
+                (-d, +d),
+                transform=ax_top.transAxes,
+                color="black",
+                clip_on=False,
+            )
+            ax_top.plot(
+                (1 - d, 1 + d),
+                (-d, +d),
+                transform=ax_top.transAxes,
+                color="black",
+                clip_on=False,
+            )
+
+            ax_bottom.plot(
+                (-d, +d),
+                (1 - d, 1 + d),
+                transform=ax_bottom.transAxes,
+                color="black",
+                clip_on=False,
+            )
+            ax_bottom.plot(
+                (1 - d, 1 + d),
+                (1 - d, 1 + d),
+                transform=ax_bottom.transAxes,
+                color="black",
+                clip_on=False,
+            )
+
+            fig.tight_layout()
+            fig.savefig(root / filename, dpi=150)
+            plt.close(fig)
+
+    goal_plot(
+        "mean_return",
+        "return_by_goal.png",
+        "mean return",
+        broken_axis=True,
+    )
+
     goal_plot("success_rate", "success_by_goal.png", "success rate")
     goal_plot("mean_final_distance", "final_distance_by_goal.png", "mean final distance")
+
     fig, ax = plt.subplots(figsize=(6, 4))
     for method in LEARNED:
-        ax.bar([f"{method}\ntrain", f"{method}\nID"], [_mean(r["oracle_gap_closure"] for r in closure if r["method"] == method and r["split"] == split) for split in ("train", "id")])
-    ax.set(ylabel="oracle gap closure"); fig.tight_layout(); fig.savefig(root / "oracle_gap_closure.png", dpi=150); plt.close(fig)
+        ax.bar(
+            [f"{method}\ntrain", f"{method}\nID"],
+            [
+                _mean(
+                    r["oracle_gap_closure"]
+                    for r in closure
+                    if r["method"] == method and r["split"] == split
+                )
+                for split in ("train", "id")
+            ],
+        )
+    ax.set(ylabel="oracle gap closure")
+    fig.tight_layout()
+    fig.savefig(root / "oracle_gap_closure.png", dpi=150)
+    plt.close(fig)
+
     fig, ax = plt.subplots(figsize=(8, 4))
     labels, values = [], []
     for method in METHODS:
         for split in ("id", "ood_left", "ood_right"):
-            labels.append(f"{method}\n{split}"); values.append(_mean(_lookup(by_seed, method, seed, split, "mean_return") for seed in SEEDS))
-    ax.bar(labels, values); ax.tick_params(axis="x", rotation=45); ax.set(ylabel="return"); fig.tight_layout(); fig.savefig(root / "id_vs_ood_return.png", dpi=150); plt.close(fig)
+            labels.append(f"{method}\n{split}")
+            values.append(
+                _mean(
+                    _lookup(by_seed, method, seed, split, "mean_return")
+                    for seed in SEEDS
+                )
+            )
+    ax.bar(labels, values)
+    ax.tick_params(axis="x", rotation=45)
+    ax.set(ylabel="return")
+    fig.tight_layout()
+    fig.savefig(root / "id_vs_ood_return.png", dpi=150)
+    plt.close(fig)
+
     fig, ax = plt.subplots(figsize=(8, 4))
     labels, values = [], []
     for method in METHODS:
         for group in ("near", "far"):
-            labels.append(f"{method}\n{group}"); values.append(_mean(r["mean_return"] for r in near_far if r["method"] == method and r["distance_group"] == group))
-    ax.bar(labels, values); ax.tick_params(axis="x", rotation=45); ax.set(ylabel="OOD return"); fig.tight_layout(); fig.savefig(root / "near_vs_far_ood.png", dpi=150); plt.close(fig)
+            labels.append(f"{method}\n{group}")
+            values.append(
+                _mean(
+                    r["mean_return"]
+                    for r in near_far
+                    if r["method"] == method
+                    and r["distance_group"] == group
+                )
+            )
+    ax.bar(labels, values)
+    ax.tick_params(axis="x", rotation=45)
+    ax.set(ylabel="OOD return")
+    fig.tight_layout()
+    fig.savefig(root / "near_vs_far_ood.png", dpi=150)
+    plt.close(fig)
+
     fig, ax = plt.subplots(figsize=(6, 4))
     for split in SPLITS:
-        values = [_lookup(by_seed, "vae", seed, split, "mean_return") - _lookup(by_seed, "contrastive", seed, split, "mean_return") for seed in SEEDS]
+        values = [
+            _lookup(by_seed, "vae", seed, split, "mean_return")
+            - _lookup(by_seed, "contrastive", seed, split, "mean_return")
+            for seed in SEEDS
+        ]
         ax.plot(SEEDS, values, marker="o", label=split)
-    ax.axhline(0, color="black", linewidth=.8); ax.set(xlabel="paired seed", ylabel="VAE - contrastive return"); ax.legend(); fig.tight_layout(); fig.savefig(root / "paired_vae_contrastive_difference.png", dpi=150); plt.close(fig)
+    ax.axhline(0, color="black", linewidth=.8)
+    ax.set(
+        xlabel="paired seed",
+        ylabel="VAE - contrastive return",
+    )
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(root / "paired_vae_contrastive_difference.png", dpi=150)
+    plt.close(fig)
+
     fig, ax = plt.subplots(figsize=(7, 4))
     found = False
     for method in METHODS:
         for seed in SEEDS:
-            path = root / "downstream" / method / f"seed_{seed}" / "training_progress.csv"
+            path = (
+                root
+                / "downstream"
+                / method
+                / f"seed_{seed}"
+                / "training_progress.csv"
+            )
             if path.is_file():
-                progress = _read_csv(path); found = found or bool(progress)
-                ax.plot([float(r["timesteps"]) for r in progress], [float(r["mean_recent_episode_return"]) for r in progress], alpha=.35, label=f"{method}-{seed}")
-    ax.set(xlabel="complete-rollout timesteps", ylabel="recent training return")
-    if found: ax.legend(ncol=4, fontsize=6)
-    fig.tight_layout(); fig.savefig(root / "training_curves.png", dpi=150); plt.close(fig)
-
+                progress = _read_csv(path)
+                found = found or bool(progress)
+                ax.plot(
+                    [float(r["timesteps"]) for r in progress],
+                    [float(r["mean_recent_episode_return"]) for r in progress],
+                    alpha=.35,
+                    label=f"{method}-{seed}",
+                )
+    ax.set(
+        xlabel="complete-rollout timesteps",
+        ylabel="recent training return",
+    )
+    if found:
+        ax.legend(ncol=4, fontsize=6)
+    fig.tight_layout()
+    fig.savefig(root / "training_curves.png", dpi=150)
+    plt.close(fig)
 
 def analyze(results_dir: str | Path, spec_path: str | Path) -> Path:
     root, config_path = Path(results_dir), Path(spec_path)

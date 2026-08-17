@@ -16,7 +16,7 @@ from crl_ood.environments.context_splits import (
     carl_feature_key,
     context_normalization,
 )
-from crl_ood.environments.factory import make_pendulum_env
+from crl_ood.environments.factory import make_pendulum_env, make_cartpole_env
 from crl_ood.utils.metadata import load_config, load_context_manifest
 from crl_ood.utils.paths import run_identifier
 from crl_ood.utils.seeding import seed_everything
@@ -121,7 +121,7 @@ def evaluate_model(
 
     for (split_name, context_id), episodes in grouped_plan.items():
         context = splits[split_name][context_id]
-        env = make_pendulum_env(
+        env = make_cartpole_env( #or pendulum...
             {context_id: context},
             feature,
             method,

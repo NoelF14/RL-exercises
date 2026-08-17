@@ -2,7 +2,7 @@
 format_version: 1
 experiment:
   name: pointrobot_primary
-  source_commit: 41b796cd315013c5398ff15727a05d263a7393d6
+  source_commit: 6333a77a8151a25bcf7255fc631468e6612f55f4
   results_dir: results/pointrobot_primary
   configuration_checksum_algorithm: sha256
 dataset:
@@ -27,7 +27,7 @@ contexts:
   ood_left: [-1.0, -0.8]
   ood_right: [0.8, 1.0]
 encoder:
-  methods: [vae, contrastive]
+  methods: [vae, contrastive, contrastive_alternative]
   seeds: [0, 1, 2, 3, 4]
   architecture:
     recurrent_type: GRU
@@ -60,7 +60,7 @@ encoder:
     id_used: false
     ood_used: false
 policy:
-  methods: [no_context, oracle, vae, contrastive]
+  methods: [no_context, oracle, vae, contrastive, contrastive_alternative]
   seeds: [0, 1, 2, 3, 4]
   seed_pairing_rule: learned_method_policy_seed_s_uses_same_method_encoder_seed_s
   expected_job_count: 20

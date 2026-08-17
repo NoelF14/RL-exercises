@@ -89,7 +89,7 @@ def write_context_artifacts(
 ) -> None:
     """Persist exact expanded CARL contexts and the ordered evaluation plan."""
     from crl_ood.environments.context_splits import carl_feature_key
-    from crl_ood.environments.factory import complete_carl_contexts
+    from crl_ood.environments.factory import complete_carl_pendulum_contexts, complete_carl_cartpole_contexts
 
     key = carl_feature_key(feature)
     manifest: dict[str, Any] = {
@@ -100,7 +100,7 @@ def write_context_artifacts(
     }
     context_rows = []
     for split_name, contexts in splits.items():
-        completed = complete_carl_contexts(contexts)
+        completed = complete_carl_cartpole_contexts(contexts) #or pendulum...
         entries = []
         for order, (context_id, context) in enumerate(completed.items()):
             entries.append(

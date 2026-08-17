@@ -6,17 +6,21 @@ from collections.abc import Mapping
 
 import numpy as np
 
-FEATURE_KEYS = {"gravity": "g", "length": "l", "dt": "dt"}
-FEATURE_DEFAULTS = {"gravity": 10.0, "length": 1.0, "dt": 0.05}
+PENDULUM_FEATURE_KEYS = {"gravity": "g", "length": "l", "dt": "dt"}
+CARTPOLE_FEATURE_KEYS = {"length": "length"}
+
+PENDULUM_FEATURE_DEFAULTS = {"gravity": 10.0, "length": 1.0, "dt": 0.05}
+CARTPOLE_FEATURE_DEFAULTS = {"length": 1.0}
+
 SPLIT_NAMES = ("train", "id_test", "ood_low", "ood_high")
 
 
 def carl_feature_key(feature: str) -> str:
     """Translate a user-facing candidate name to CARL's Pendulum key."""
     try:
-        return FEATURE_KEYS[feature]
+        return CARTPOLE_FEATURE_KEYS[feature] #or pendulum...
     except KeyError as exc:
-        supported = ", ".join(FEATURE_KEYS)
+        supported = ", ".join(CARTPOLE_FEATURE_KEYS) #or pendulum...
         raise ValueError(f"Unsupported context feature {feature!r}; use {supported}") from exc
 
 
@@ -27,7 +31,7 @@ def build_context_splits(
 ) -> dict[str, dict[int, dict[str, float]]]:
     """Build seeded, explicit context sets while retaining CARL defaults."""
     key = carl_feature_key(feature)
-    default = FEATURE_DEFAULTS[feature]
+    default = CARTPOLE_FEATURE_DEFAULTS[feature] #or pendulum...
     rng = np.random.default_rng(seed)
     splits: dict[str, dict[int, dict[str, float]]] = {}
 

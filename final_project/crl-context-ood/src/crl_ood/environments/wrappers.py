@@ -29,7 +29,7 @@ class ContextObservation(gym.ObservationWrapper):
 
         state_space = env.observation_space["obs"]
         if not isinstance(state_space, gym.spaces.Box):
-            raise TypeError("CARLPendulum state observation must be a Box")
+            raise TypeError("CARL state observation must be a Box")
         low = np.asarray(state_space.low, dtype=np.float32).reshape(-1)
         high = np.asarray(state_space.high, dtype=np.float32).reshape(-1)
         if mode == "oracle":

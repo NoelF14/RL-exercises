@@ -15,7 +15,7 @@ from crl_ood.environments.context_splits import (
     build_context_splits,
     context_normalization,
 )
-from crl_ood.environments.factory import make_pendulum_env
+from crl_ood.environments.factory import make_pendulum_env, make_cartpole_env
 from crl_ood.evaluation.evaluate import build_evaluation_plan, evaluate_model
 from crl_ood.utils.metadata import (
     load_config,
@@ -67,7 +67,7 @@ def train_one(
         evaluation_plan,
     )
 
-    base_env = make_pendulum_env(
+    base_env = make_cartpole_env( #or pendulum...
         splits["train"],
         feature,
         mode,
