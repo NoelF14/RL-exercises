@@ -247,7 +247,28 @@ def validate(
 ) -> dict[str, float]:
     model.eval(); totals: dict[str, list[float]] = {}
     negative_rng = random.Random(negative_seed)
-    loader = DataLoader(dataset, batch_size=int(config["encoder"]["batch_size"]), shuffle=False)
+
+    # InfoNCE validation depends on minibatch composition. For in-batch
+    # negatives, use a deterministic shuffle so validation reflects the
+    # mixed-context batching used during training while remaining reproducible.
+    contrastive_mode = (
+        str(config["contrastive"]["negative_mode"])
+        if method == "contrastive"
+        else None
+    )
+    shuffle_validation = contrastive_mode == "in_batch"
+    validation_generator = (
+        torch.Generator().manual_seed(negative_seed)
+        if shuffle_validation
+        else None
+    )
+
+    loader = DataLoader(
+        dataset,
+        batch_size=int(config["encoder"]["batch_size"]),
+        shuffle=shuffle_validation,
+        generator=validation_generator,
+    )
     for batch in loader:
         batch = {key: value.to(device) for key, value in batch.items()}
         losses, _ = _loss(

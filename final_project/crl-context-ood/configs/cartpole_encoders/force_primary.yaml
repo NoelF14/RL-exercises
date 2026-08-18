@@ -1,0 +1,58 @@
+# Frozen auxiliary CartPole force-magnitude history encoder specification.
+# Dataset selection and encoder fitting use training contexts only.
+
+experiment:
+  name: cartpole_force_encoders
+  results_dir: results/cartpole_force_encoders
+  source_gate_config: configs/cartpole_force_phase0.yaml
+
+dataset:
+  path: results/cartpole_force_encoders/dataset/full_frozen
+  checksum: be2942887fd919057efb89525fcc8809c0d7dfb5ae6985020520cbabfd578ebf
+  train_contexts: [7.0, 7.75, 8.5, 9.25, 10.0, 10.75, 11.5, 12.25, 13.0]
+  behavior_policy: matched_open_loop_bernoulli
+  horizon: 20
+  trajectories_per_context: 200
+  validation_fraction: 0.2
+  history_signal_audit:
+    raw_history_linear_probe: approximately_chance
+    action_aligned_dynamics_probe: approximately_perfect
+
+encoder:
+  history_length: 5
+  future_horizon: 5
+  transition_dim: 10
+  state_dim: 4
+  action_dim: 1
+  hidden_size: 64
+  latent_dim: 8
+  num_gru_layers: 1
+  optimizer: Adam
+  learning_rate: 0.001
+  batch_size: 64
+  max_updates: 20000
+  validation_interval: 200
+  gradient_clip_norm: 10.0
+  checkpoint_metric: total_validation_objective
+
+vae:
+  state_loss_weight: 1.0
+  # All retained CartPole trajectories receive constant survival reward,
+  # so reward reconstruction carries no force-identification signal.
+  reward_loss_weight: 0.0
+  kl_weight: 0.001
+
+contrastive:
+  temperature: 0.1
+  negative_mode: in_batch
+  positive_pair: matched_history_and_future_from_same_trajectory
+  negative_pairs: all_other_future_blocks_in_minibatch
+  uses_context_labels: false
+
+training:
+  methods: [vae, contrastive]
+  seeds: [0, 1]
+
+reproducibility:
+  deterministic_torch: true
+  device: cpu
