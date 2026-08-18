@@ -198,7 +198,8 @@ def make_window(arrays: dict[str, np.ndarray], index: WindowIndex, history_lengt
     raw = transition_features(arrays["states"][e, start:t], arrays["actions"][e, start:t],
                               arrays["rewards"][e, start:t], arrays["next_states"][e, start:t])
     length = len(raw)
-    history = np.zeros((history_length, 7), dtype=np.float32)
+    transition_dim = int(arrays["normalization_mean"].shape[0])
+    history = np.zeros((history_length, transition_dim), dtype=np.float32)
     mask = np.zeros(history_length, dtype=np.bool_)
     if length:
         history[:length] = (raw - arrays["normalization_mean"]) / arrays["normalization_std"]

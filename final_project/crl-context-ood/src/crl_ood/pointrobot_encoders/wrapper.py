@@ -59,7 +59,10 @@ class FrozenHistoryObservation(gym.Wrapper[np.ndarray, np.ndarray, np.ndarray, n
         return self._observation(next_state), reward, terminated, truncated, info
 
     def _observation(self, state: np.ndarray) -> np.ndarray:
-        history = np.zeros((1, self.history_length, 7), dtype=np.float32)
+        history = np.zeros(
+            (1, self.history_length, len(self._mean)),
+            dtype=np.float32,
+        )
         length = len(self._history)
         if length:
             history[0, :length] = np.asarray(self._history)

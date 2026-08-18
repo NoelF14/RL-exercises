@@ -194,18 +194,45 @@ def _loss(
                                float(config["vae"]["reward_loss_weight"]), float(config["vae"]["kl_weight"]))
         return losses, []
     if method == "contrastive":
+        mode = str(config["contrastive"]["negative_mode"])
+        temperature = float(config["contrastive"]["temperature"])
+
+        if mode == "in_batch":
+            losses = contrastive_objective(
+                model,
+                batch,
+                None,
+                temperature,
+                mode,
+            )
+            return losses, []
+
         negative, provenance = hard_negative_rewards(batch)
-        losses = contrastive_objective(model, batch, negative, float(config["contrastive"]["temperature"]),
-                                           str(config["contrastive"]["negative_mode"]))
+        losses = contrastive_objective(
+            model,
+            batch,
+            negative,
+            temperature,
+            mode,
+        )
+        return losses, provenance
+
     if method == "contrastive_alternative":
         if rng is None:
             raise ValueError(
                 "contrastive_alternative requires an explicit RNG"
             )
         negative, provenance = hard_negative_rewards_alternative(batch, rng)
-        losses = contrastive_objective(model, batch, negative, float(config["contrastive_alternative"]["temperature"]),
-                                           str(config["contrastive_alternative"]["negative_mode"]))
-    return losses, provenance
+        losses = contrastive_objective(
+            model,
+            batch,
+            negative,
+            float(config["contrastive_alternative"]["temperature"]),
+            str(config["contrastive_alternative"]["negative_mode"]),
+        )
+        return losses, provenance
+
+    raise ValueError(f"unknown encoder method {method!r}")
 
 
 @torch.no_grad()

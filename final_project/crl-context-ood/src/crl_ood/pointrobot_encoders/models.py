@@ -37,27 +37,64 @@ class HistoryBackbone(nn.Module):
 
 
 class FutureDecoder(nn.Module):
-    def __init__(self, latent_dim: int, horizon: int, hidden_size: int = 64) -> None:
+    def __init__(
+        self,
+        latent_dim: int,
+        horizon: int,
+        hidden_size: int = 64,
+        state_dim: int = 2,
+        action_dim: int = 2,
+    ) -> None:
         super().__init__()
         self.horizon = int(horizon)
-        input_dim = latent_dim + 2 + 2 * horizon
-        self.network = nn.Sequential(nn.Linear(input_dim, hidden_size), nn.Tanh(),
-                                     nn.Linear(hidden_size, horizon * 3))
+        self.state_dim = int(state_dim)
+        self.action_dim = int(action_dim)
+        input_dim = latent_dim + self.state_dim + self.action_dim * self.horizon
+        output_dim = self.horizon * (self.state_dim + 1)
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, output_dim),
+        )
 
-    def forward(self, latent: torch.Tensor, current_state: torch.Tensor,
-                future_actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        flat = torch.cat((latent, current_state, future_actions.flatten(1)), dim=-1)
-        output = self.network(flat).reshape(-1, self.horizon, 3)
-        return output[..., :2], output[..., 2]
+    def forward(
+        self,
+        latent: torch.Tensor,
+        current_state: torch.Tensor,
+        future_actions: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        flat = torch.cat(
+            (latent, current_state, future_actions.flatten(1)),
+            dim=-1,
+        )
+        output = self.network(flat).reshape(
+            -1,
+            self.horizon,
+            self.state_dim + 1,
+        )
+        return output[..., :self.state_dim], output[..., self.state_dim]
 
 
 class VAEHistoryEncoder(nn.Module):
-    def __init__(self, transition_dim: int = 7, hidden_size: int = 64, latent_dim: int = 8,
-                 future_horizon: int = 5) -> None:
+    def __init__(
+        self,
+        transition_dim: int = 7,
+        hidden_size: int = 64,
+        latent_dim: int = 8,
+        future_horizon: int = 5,
+        state_dim: int = 2,
+        action_dim: int = 2,
+    ) -> None:
         super().__init__()
         self.backbone = HistoryBackbone(transition_dim, hidden_size, latent_dim)
         self.logvar_head = nn.Linear(hidden_size, latent_dim)
-        self.decoder = FutureDecoder(latent_dim, future_horizon, hidden_size)
+        self.decoder = FutureDecoder(
+            latent_dim,
+            future_horizon,
+            hidden_size,
+            state_dim=state_dim,
+            action_dim=action_dim,
+        )
 
     def distribution(self, history: torch.Tensor, lengths: torch.Tensor,
                      mask: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
@@ -87,13 +124,25 @@ class VAEHistoryEncoder(nn.Module):
 
 
 class ContrastiveHistoryEncoder(nn.Module):
-    def __init__(self, transition_dim: int = 7, hidden_size: int = 64, latent_dim: int = 8,
-                 future_horizon: int = 5) -> None:
+    def __init__(
+        self,
+        transition_dim: int = 7,
+        hidden_size: int = 64,
+        latent_dim: int = 8,
+        future_horizon: int = 5,
+        state_dim: int = 2,
+        action_dim: int = 2,
+    ) -> None:
         super().__init__()
         self.backbone = HistoryBackbone(transition_dim, hidden_size, latent_dim)
-        block_dim = 2 + future_horizon * (2 + 1 + 2)
-        self.future_head = nn.Sequential(nn.Linear(block_dim, hidden_size), nn.Tanh(),
-                                         nn.Linear(hidden_size, latent_dim))
+        block_dim = state_dim + future_horizon * (
+            state_dim + action_dim + 1
+        )
+        self.future_head = nn.Sequential(
+            nn.Linear(block_dim, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, latent_dim),
+        )
 
     def encode(self, history: torch.Tensor, lengths: torch.Tensor,
                mask: torch.Tensor | None = None, deterministic: bool = True) -> torch.Tensor:
@@ -116,15 +165,21 @@ def vae_objective(outputs: dict[str, torch.Tensor], batch: dict[str, torch.Tenso
     return {"total": total, "state_reconstruction": state_loss, "reward_reconstruction": reward_loss, "kl": kl}
 
 
-def contrastive_objective(model: ContrastiveHistoryEncoder, batch: dict[str, torch.Tensor],
-                          negative_rewards: torch.Tensor, temperature: float,
-                          mode: str = "reward_relabel") -> dict[str, torch.Tensor]:
+def contrastive_objective(
+    model: ContrastiveHistoryEncoder,
+    batch: dict[str, torch.Tensor],
+    negative_rewards: torch.Tensor | None,
+    temperature: float,
+    mode: str = "reward_relabel",
+) -> dict[str, torch.Tensor]:
     if temperature <= 0:
         raise ValueError("temperature must be positive")
     query = nn.functional.normalize(model.encode(batch["history"], batch["length"], batch.get("mask")), dim=-1)
     positive = model.future_embedding(batch["current_state"], batch["future_states"],
                                       batch["future_actions"], batch["future_rewards"])
     if mode == "reward_relabel" or mode == "reward_relabel_alternative":
+        if negative_rewards is None:
+            raise ValueError("reward-relabel mode requires negative rewards")
         if negative_rewards.shape != batch["future_rewards"].shape:
             raise ValueError("one valid hard-negative reward block is required per sample")
         negative = model.future_embedding(batch["current_state"], batch["future_states"],
@@ -159,8 +214,15 @@ def checkpoint_payload(model: nn.Module, method: str, config: dict[str, Any], no
 
 
 def build_model(method: str, encoder: dict[str, Any]) -> nn.Module:
-    kwargs = {"transition_dim": int(encoder["transition_dim"]), "hidden_size": int(encoder["hidden_size"]),
-              "latent_dim": int(encoder["latent_dim"]), "future_horizon": int(encoder["future_horizon"])}
+    kwargs = {
+        "transition_dim": int(encoder["transition_dim"]),
+        "hidden_size": int(encoder["hidden_size"]),
+        "latent_dim": int(encoder["latent_dim"]),
+        "future_horizon": int(encoder["future_horizon"]),
+        # Defaults preserve all existing PointRobot checkpoints/configs.
+        "state_dim": int(encoder.get("state_dim", 2)),
+        "action_dim": int(encoder.get("action_dim", 2)),
+    }
     if method == "vae":
         return VAEHistoryEncoder(**kwargs)
     if method == "contrastive" or method == "contrastive_alternative":
