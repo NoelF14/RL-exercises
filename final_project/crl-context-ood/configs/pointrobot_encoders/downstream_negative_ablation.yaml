@@ -1,6 +1,6 @@
 experiment:
   name: pointrobot_encoder_downstream
-  results_dir: results/pointrobot_encoders/downstream
+  results_dir: results/pointrobot_negative_ablation/downstream
   source_gate_config: configs/pointrobot_gate/gate.yaml
 methods: [contrastive_alternative]
 integration_pilot:
@@ -10,7 +10,7 @@ integration_pilot:
 full_primary:
   seeds: [0, 1, 2, 3, 4]
   total_timesteps: 200000
-  status: unavailable_until_integration_validated_and_encoder_spec_frozen
+  status: available_after_frozen_full_dataset_encoders
 training:
   learning_rate: 0.0003
   n_steps: 2048
