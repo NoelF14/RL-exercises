@@ -15,6 +15,7 @@ FEATURE_KEYS = {
     },
     "cartpole": {
         "length": "length",
+        "force_mag": "force_mag",
     },
 }
 
@@ -25,7 +26,8 @@ FEATURE_DEFAULTS = {
         "dt": 0.05,
     },
     "cartpole": {
-        "length": 1.0,
+        "length": 0.5,
+        "force_mag": 10.0,
     },
 }
 
@@ -131,7 +133,7 @@ def infer_environment_from_contexts(
 
     keys = set(next(iter(contexts.values())).keys())
 
-    if "length" in keys:
+    if keys & {"length", "force_mag"}:
         return "cartpole"
 
     if keys & {"g", "l", "dt"}:

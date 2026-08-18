@@ -1,0 +1,46 @@
+experiment:
+  name: cartpole_force_phase0
+  results_dir: results
+  seeds: [0, 1]
+  modes: [hidden, oracle]
+  context_features: [force_mag]
+
+environment:
+  name: cartpole
+  split_seed: 23
+  oracle_normalization: train_range
+  splits:
+    train:
+      low_multiplier: 0.7
+      high_multiplier: 1.3
+      count: 9
+    id_test:
+      low_multiplier: 0.75
+      high_multiplier: 1.25
+      count: 8
+    ood_low:
+      low_multiplier: 0.1
+      high_multiplier: 0.4
+      count: 5
+    ood_high:
+      low_multiplier: 2.0
+      high_multiplier: 4.0
+      count: 5
+
+training:
+  total_timesteps: 100000
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  device: auto
+
+evaluation:
+  episodes_per_context: 5
+  deterministic: true
+  seed_offset: 20000
+
+reproducibility:
+  deterministic_torch: true

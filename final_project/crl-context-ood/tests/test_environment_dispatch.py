@@ -99,3 +99,14 @@ def test_make_env_dispatches_by_environment(monkeypatch):
         "pendulum",
         "cartpole",
     ]
+
+
+def test_cartpole_force_mag_feature_key_and_default():
+    from crl_ood.environments.context_splits import (
+        FEATURE_DEFAULTS,
+        carl_feature_key,
+    )
+
+    assert carl_feature_key("force_mag", "cartpole") == "force_mag"
+    assert FEATURE_DEFAULTS["cartpole"]["force_mag"] == 10.0
+    assert FEATURE_DEFAULTS["cartpole"]["length"] == 0.5

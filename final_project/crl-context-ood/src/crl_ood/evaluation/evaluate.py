@@ -221,7 +221,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--model", type=Path, required=True)
-    parser.add_argument("--feature", choices=("gravity", "length", "dt"), required=True)
+    parser.add_argument("--feature", choices=("gravity", "length", "dt", "force_mag"), required=True)
     parser.add_argument("--mode", choices=("hidden", "oracle"), required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)

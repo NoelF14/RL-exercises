@@ -178,7 +178,7 @@ def _common_parser(description: str) -> argparse.ArgumentParser:
 
 def main() -> None:
     parser = _common_parser(__doc__ or "Train PPO")
-    parser.add_argument("--feature", choices=("gravity", "length", "dt"), required=True)
+    parser.add_argument("--feature", choices=("gravity", "length", "dt", "force_mag"), required=True)
     parser.add_argument("--mode", choices=("hidden", "oracle"), required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--overwrite", action="store_true")
@@ -195,7 +195,7 @@ def main() -> None:
 
 def phase0_main() -> None:
     parser = _common_parser("Run the Phase 0 hidden-versus-oracle matrix")
-    parser.add_argument("--features", nargs="+", choices=("gravity", "length", "dt"))
+    parser.add_argument("--features", nargs="+", choices=("gravity", "length", "dt", "force_mag"))
     parser.add_argument("--modes", nargs="+", choices=("hidden", "oracle"))
     parser.add_argument("--seeds", nargs="+", type=int)
     parser.add_argument("--overwrite", action="store_true")
