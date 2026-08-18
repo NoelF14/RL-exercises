@@ -1,0 +1,51 @@
+# Immutable matched PointRobot encoder specification. Selection is train-only.
+experiment:
+  name: pointrobot_encoders
+  results_dir: results/pointrobot_encoders
+  source_gate_config: configs/pointrobot_gate/gate.yaml
+dataset:
+  train_contexts: [-0.6, -0.3, 0.0, 0.3, 0.6]
+  behavior_policy: orthogonal_then_isotropic
+  supported_behavior_policies: [orthogonal_then_isotropic, random_only]
+  orthogonal_prefix: [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]]
+  horizon: 50
+  validation_fraction: 0.2
+  split_seed: 31001
+  action_seed_offset: 41000
+  budgets:
+    tiny: {trajectories_per_context: 2}
+    small: {trajectories_per_context: 40}
+    full: {trajectories_per_context: 400}
+encoder:
+  history_length: 5
+  supported_history_lengths: [1, 3, 5, 10]
+  future_horizon: 5
+  transition_dim: 7
+  hidden_size: 64
+  latent_dim: 8
+  num_gru_layers: 1
+  optimizer: Adam
+  learning_rate: 0.001
+  batch_size: 64
+  max_updates: 20000
+  validation_interval: 200
+  gradient_clip_norm: 10.0
+  checkpoint_metric: total_validation_objective
+vae:
+  state_loss_weight: 1.0
+  reward_loss_weight: 1.0
+  kl_weight: 0.001
+contrastive:
+  temperature: 0.1
+  negative_mode: reward_relabel
+  supported_negative_modes: [reward_relabel, in_batch, reward_relabel_alternative]
+contrastive_alternative:
+  temperature: 0.1
+  negative_mode: reward_relabel_alternative
+pilot:
+  methods: [contrastive_alternative]
+  seeds: [0, 1]
+  dataset_budget: small
+reproducibility:
+  deterministic_torch: true
+  device: cpu

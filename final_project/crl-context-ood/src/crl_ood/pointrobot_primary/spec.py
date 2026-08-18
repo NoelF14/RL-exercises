@@ -10,8 +10,8 @@ from typing import Any
 
 import yaml
 
-METHODS = ("no_context", "oracle", "vae", "contrastive", "contrastive_alternative")
-LEARNED_METHODS = ("vae", "contrastive", "contrastive_alternative")
+METHODS = ("no_context", "oracle", "vae", "contrastive")
+LEARNED_METHODS = ("vae", "contrastive")
 SEEDS = (0, 1, 2, 3, 4)
 SPLITS = {
     "train": (-0.6, -0.3, 0.0, 0.3, 0.6),
@@ -107,8 +107,8 @@ def build_encoder_jobs(spec: dict[str, Any], root: Path) -> list[EncoderJob]:
     output_root = root / spec["experiment"]["results_dir"] / "encoders"
     jobs = [EncoderJob(method, seed, dataset_dir, output_root / method / f"seed_{seed}", checksum)
             for method in LEARNED_METHODS for seed in SEEDS]
-    if len(jobs) != 15 or len({(job.method, job.encoder_seed) for job in jobs}) != 15:
-        raise AssertionError("encoder matrix must contain exactly fifteen unique jobs")
+    if len(jobs) != 10 or len({(job.method, job.encoder_seed) for job in jobs}) != 10:
+        raise AssertionError("encoder matrix must contain exactly ten unique jobs")
     return jobs
 
 
@@ -160,8 +160,8 @@ def build_downstream_jobs(spec: dict[str, Any], root: Path) -> list[PrimaryJob]:
                 Path(row["checkpoint"]) if row else None, row["checkpoint_sha256"] if row else None,
                 checksum, int(spec["policy"]["requested_timesteps"]), int(spec["policy"]["ppo"]["n_steps"]),
                 output_root / method / f"seed_{seed}"))
-    if len(jobs) != 25 or len({(job.method, job.policy_seed) for job in jobs}) != 25:
-        raise AssertionError("downstream matrix must contain exactly twentyfive unique jobs")
+    if len(jobs) != 20 or len({(job.method, job.policy_seed) for job in jobs}) != 20:
+        raise AssertionError("downstream matrix must contain exactly twenty unique jobs")
     learned = [job for job in jobs if job.method in LEARNED_METHODS]
     if any(job.encoder_seed != job.policy_seed or job.checkpoint is None for job in learned):
         raise ValueError("learned policy seed s must use its method's encoder seed s checkpoint")
