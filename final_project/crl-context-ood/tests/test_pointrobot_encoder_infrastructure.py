@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from pathlib import Path
+import random
 
 import numpy as np
 import pytest
@@ -15,7 +16,9 @@ from crl_ood.pointrobot_encoders.dataset import (ENCODER_INPUT_FIELDS, TRAIN_CON
 from crl_ood.pointrobot_encoders.downstream import build_jobs
 from crl_ood.pointrobot_encoders.models import (ContrastiveHistoryEncoder, VAEHistoryEncoder,
     checkpoint_payload, contrastive_objective, parameter_counts, vae_objective)
-from crl_ood.pointrobot_encoders.training import hard_negative_rewards, load_frozen_checkpoint
+from crl_ood.pointrobot_encoders.training import hard_negative_rewards_alternative
+from crl_ood.pointrobot_encoders.training import (hard_negative_rewards, load_frozen_checkpoint,
+    hard_negative_rewards_alternative)
 from crl_ood.pointrobot_encoders.wrapper import FrozenHistoryObservation, make_policy_env
 from crl_ood.pointrobot_gate.environment import DenseSemiCirclePointRobot
 
@@ -145,6 +148,45 @@ def test_hard_negative_same_state_action_different_training_goal():
     assert all(row["negative_goal"] in TRAIN_CONTEXTS for row in provenance)
     assert all(row["reward_targets_different"] for row in provenance)
     assert not torch.allclose(negative, batch["future_rewards"])
+
+
+def test_alternative_hard_negative_uses_adjacent_goals_without_wraparound():
+    batch = _batch()
+    original_states = batch["future_states"].clone()
+    original_actions = batch["future_actions"].clone()
+
+    rng_a = random.Random(123)
+    negative_a, provenance_a = hard_negative_rewards_alternative(
+        batch,
+        rng_a,
+    )
+
+    rng_b = random.Random(123)
+    negative_b, provenance_b = hard_negative_rewards_alternative(
+        batch,
+        rng_b,
+    )
+
+    assert torch.equal(negative_a, negative_b)
+    assert provenance_a == provenance_b
+
+    assert torch.equal(original_states, batch["future_states"])
+    assert torch.equal(original_actions, batch["future_actions"])
+
+    for row in provenance_a:
+        positive = float(row["positive_goal"])
+        negative = float(row["negative_goal"])
+
+        assert positive != negative
+        assert negative in TRAIN_CONTEXTS
+        assert np.isclose(abs(positive - negative), 0.3)
+        assert row["state_action_preserved"]
+        assert row["reward_targets_different"]
+
+    assert not torch.allclose(
+        negative_a,
+        batch["future_rewards"],
+    )
 
 
 def _checkpoint(tmp_path: Path, method: str) -> tuple[Path, str]:

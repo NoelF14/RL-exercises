@@ -16,7 +16,7 @@ from crl_ood.environments.context_splits import (
     carl_feature_key,
     context_normalization,
 )
-from crl_ood.environments.factory import make_pendulum_env, make_cartpole_env
+from crl_ood.environments.factory import make_env
 from crl_ood.utils.metadata import load_config, load_context_manifest
 from crl_ood.utils.paths import run_identifier
 from crl_ood.utils.seeding import seed_everything
@@ -59,7 +59,13 @@ def build_evaluation_plan(
     """Build the ordered, paired set of evaluation contexts and episode seeds."""
     episodes_per_context = int(config["evaluation"]["episodes_per_context"])
     seed_offset = int(config["evaluation"]["seed_offset"])
-    feature_key = carl_feature_key(feature)
+    environment_name = str(
+        config["environment"].get("name", "pendulum")
+    ).lower()
+    feature_key = carl_feature_key(
+        feature,
+        environment_name,
+    )
     run_id = run_identifier(config, feature, method, seed)
     plan = []
     for split_index, (split_name, contexts) in enumerate(splits.items()):
@@ -100,14 +106,22 @@ def evaluate_model(
     """Evaluate every planned episode and save episode-level and aggregate CSV."""
     if config["environment"].get("oracle_normalization") != "train_range":
         raise ValueError("Phase 0 supports only oracle_normalization: train_range")
+    environment_name = str(
+        config["environment"].get("name", "pendulum")
+    ).lower()
     if splits is None:
         splits = build_context_splits(
             feature,
             config["environment"]["splits"],
             int(config["environment"]["split_seed"]),
+            environment=environment_name,
         )
     if normalization is None:
-        normalization = context_normalization(splits["train"], feature)
+        normalization = context_normalization(
+            splits["train"],
+            feature,
+            environment=environment_name,
+        )
     if evaluation_plan is None:
         evaluation_plan = build_evaluation_plan(config, feature, method, seed, splits)
 
@@ -121,7 +135,8 @@ def evaluate_model(
 
     for (split_name, context_id), episodes in grouped_plan.items():
         context = splits[split_name][context_id]
-        env = make_cartpole_env( #or pendulum...
+        env = make_env(
+            environment_name,
             {context_id: context},
             feature,
             method,

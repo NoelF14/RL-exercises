@@ -15,7 +15,7 @@ from crl_ood.environments.context_splits import (
     build_context_splits,
     context_normalization,
 )
-from crl_ood.environments.factory import make_pendulum_env, make_cartpole_env
+from crl_ood.environments.factory import make_env
 from crl_ood.evaluation.evaluate import build_evaluation_plan, evaluate_model
 from crl_ood.utils.metadata import (
     load_config,
@@ -42,14 +42,22 @@ def train_one(
     """Train and evaluate one feature-mode-seed run."""
     deterministic_torch = bool(config["reproducibility"]["deterministic_torch"])
     seed_everything(seed, deterministic_torch=deterministic_torch)
+    environment_name = str(
+        config["environment"].get("name", "pendulum")
+    ).lower()
     splits = build_context_splits(
         feature,
         config["environment"]["splits"],
         int(config["environment"]["split_seed"]),
+        environment=environment_name,
     )
     if config["environment"].get("oracle_normalization") != "train_range":
         raise ValueError("Phase 0 supports only oracle_normalization: train_range")
-    normalization = context_normalization(splits["train"], feature)
+    normalization = context_normalization(
+        splits["train"],
+        feature,
+        environment=environment_name,
+    )
     run_dir = prepare_run_directory(
         config, feature, mode, seed, overwrite=overwrite
     )
@@ -67,7 +75,8 @@ def train_one(
         evaluation_plan,
     )
 
-    base_env = make_cartpole_env( #or pendulum...
+    base_env = make_env(
+        environment_name,
         splits["train"],
         feature,
         mode,

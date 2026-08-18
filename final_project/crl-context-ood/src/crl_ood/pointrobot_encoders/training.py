@@ -60,15 +60,18 @@ def hard_negative_rewards(batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor,
     tensor = torch.as_tensor(np.asarray(output), device=batch["future_rewards"].device)
     return tensor, provenance
 
-def hard_negative_rewards_alternative(batch: dict[str, torch.Tensor], rng: random.Random) -> tuple[torch.Tensor, list[dict[str, Any]]]:
-    """Relabel identical future state/actions under a deterministic different train goal."""
+def hard_negative_rewards_alternative(
+    batch: dict[str, torch.Tensor],
+    rng: random.Random,
+) -> tuple[torch.Tensor, list[dict[str, Any]]]:
+    """Relabel identical future state/actions under a sampled adjacent training goal."""
     contexts = batch["context"].detach().cpu().numpy()
     states = batch["future_states"].detach().cpu().numpy()
     actions = batch["future_actions"].detach().cpu().numpy()
     output, provenance = [], []
     for index, (context, future_states, future_actions) in enumerate(zip(contexts, states, actions)):
         source = min(range(len(TRAIN_CONTEXTS)), key=lambda i: abs(TRAIN_CONTEXTS[i] - float(context)))
-        # 50% left neighbour, 50% right neighbour, no wrap-around
+        # Sample uniformly from available adjacent goals; endpoints have one candidate.
         candidates = []
         if source > 0:
             candidates.append(source - 1)
@@ -106,6 +109,7 @@ def train_encoder(config: dict[str, Any], dataset_dir: str | Path, method: str, 
     if updates <= 0:
         raise ValueError("max_updates must be positive")
     _seed(seed, bool(config["reproducibility"]["deterministic_torch"]))
+    negative_rng = random.Random(seed)
     device = torch.device(str(config["reproducibility"]["device"]))
     model = build_model(method, encoder).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(encoder["learning_rate"]))
@@ -139,7 +143,13 @@ def train_encoder(config: dict[str, Any], dataset_dir: str | Path, method: str, 
             iterator = iter(loader); batch = next(iterator)
         batch = {key: value.to(device) for key, value in batch.items()}
         model.train(); optimizer.zero_grad(set_to_none=True)
-        losses, provenance = _loss(model, method, batch, config)
+        losses, provenance = _loss(
+            model,
+            method,
+            batch,
+            config,
+            rng=negative_rng,
+        )
         losses["total"].backward()
         gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float(encoder["gradient_clip_norm"]))
         optimizer.step()
@@ -148,7 +158,14 @@ def train_encoder(config: dict[str, Any], dataset_dir: str | Path, method: str, 
                               "timestep": int(batch["timestep"][i])} for i, row in enumerate(provenance)]
         should_validate = update == updates or update % validation_interval == 0
         if should_validate:
-            validation = validate(model, method, validation_data, config, device)
+            validation = validate(
+                model,
+                method,
+                validation_data,
+                config,
+                device,
+                negative_seed=seed,
+            )
             row = {"update": update, "split": "validation", "learning_rate": optimizer.param_groups[0]["lr"],
                    "gradient_norm": float(gradient_norm), **validation}
             rows.append(row)
@@ -164,8 +181,14 @@ def train_encoder(config: dict[str, Any], dataset_dir: str | Path, method: str, 
     return output
 
 
-def _loss(model: torch.nn.Module, method: str, batch: dict[str, torch.Tensor],
-          config: dict[str, Any]) -> tuple[dict[str, torch.Tensor], list[dict[str, Any]]]:
+def _loss(
+    model: torch.nn.Module,
+    method: str,
+    batch: dict[str, torch.Tensor],
+    config: dict[str, Any],
+    *,
+    rng: random.Random | None = None,
+) -> tuple[dict[str, torch.Tensor], list[dict[str, Any]]]:
     if method == "vae":
         losses = vae_objective(model(batch), batch, float(config["vae"]["state_loss_weight"]),
                                float(config["vae"]["reward_loss_weight"]), float(config["vae"]["kl_weight"]))
@@ -175,20 +198,38 @@ def _loss(model: torch.nn.Module, method: str, batch: dict[str, torch.Tensor],
         losses = contrastive_objective(model, batch, negative, float(config["contrastive"]["temperature"]),
                                            str(config["contrastive"]["negative_mode"]))
     if method == "contrastive_alternative":
-        negative, provenance = hard_negative_rewards_alternative(batch, random.Random(config["contrastive_alternative"]["seed"]))
+        if rng is None:
+            raise ValueError(
+                "contrastive_alternative requires an explicit RNG"
+            )
+        negative, provenance = hard_negative_rewards_alternative(batch, rng)
         losses = contrastive_objective(model, batch, negative, float(config["contrastive_alternative"]["temperature"]),
                                            str(config["contrastive_alternative"]["negative_mode"]))
     return losses, provenance
 
 
 @torch.no_grad()
-def validate(model: torch.nn.Module, method: str, dataset: WindowDataset, config: dict[str, Any],
-             device: torch.device) -> dict[str, float]:
+def validate(
+    model: torch.nn.Module,
+    method: str,
+    dataset: WindowDataset,
+    config: dict[str, Any],
+    device: torch.device,
+    *,
+    negative_seed: int = 0,
+) -> dict[str, float]:
     model.eval(); totals: dict[str, list[float]] = {}
+    negative_rng = random.Random(negative_seed)
     loader = DataLoader(dataset, batch_size=int(config["encoder"]["batch_size"]), shuffle=False)
     for batch in loader:
         batch = {key: value.to(device) for key, value in batch.items()}
-        losses, _ = _loss(model, method, batch, config)
+        losses, _ = _loss(
+            model,
+            method,
+            batch,
+            config,
+            rng=negative_rng,
+        )
         for key, value in losses.items():
             if key != "logits":
                 totals.setdefault(key, []).append(float(value))
